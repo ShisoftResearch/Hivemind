@@ -5,3 +5,13 @@ authors = ["Jack Shi <shisoftgenius@gmail.com>"]
 
 [dependencies]
 libloading = "0.4"
+serde = "*"
+serde_derive = "*"
+bifrost = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
+bifrost_plugins = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
+bifrost_hasher = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
+[lib]
+name = "hivemind"
+
+[[test]]
+name = "tests"
