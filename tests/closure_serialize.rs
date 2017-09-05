@@ -8,10 +8,10 @@ macro_rules! fn_id {
 }
 
 macro_rules! serialize {
-    ($fn: expr) => {
-       let func_id = fn_id!($fn);
-
-    };
+    ($fn: expr) => {{
+        let func_id = fn_id!($fn);
+        
+    }};
 }
 
 #[test]
