@@ -12,6 +12,9 @@
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
 pub trait  RDDFunc<F, FA, FR> where F: Fn(FA) -> FR {
+    fn id() -> u64;
+    fn call(args: FA) -> FR;
+    fn args() -> u64;
 }
 
 macro_rules! count_args {
