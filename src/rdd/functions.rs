@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
 
@@ -11,7 +13,11 @@
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
-pub trait RDDFunc<F, FA, FR> where F: Fn(FA) -> FR {
+pub trait RDDFunc<F, FA, FR>
+    where F: Fn(FA) -> FR,
+          FA: Serialize,
+          FR: Serialize
+{
     fn id() -> u64;
     fn call(args: FA) -> FR;
     fn args() -> u64;
