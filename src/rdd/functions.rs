@@ -29,27 +29,35 @@ macro_rules! fn_id {
 }
 
 macro_rules! def_rdd_func {
-    ($name: ident($($arg:ident : $t: ty),*) -> $rt:ty $body:block) => {
-        pub struct $name;
-        impl RDDFunc<fn(($($t),*)) -> $rt, ($($t),*), $rt> for $name {
-            fn id() -> u64 { fn_id!($name) }
-            fn call(args: ($($t),*)) -> $rt {
-                let ($($arg),*) = args;
-                $body
+    ($($name: ident($($arg:ident : $t: ty),*) -> $rt:ty $body:block)*) => {
+        $(
+            pub struct $name;
+            impl RDDFunc<fn(($($t),*)) -> $rt, ($($t),*), $rt> for $name {
+                fn id() -> u64 { fn_id!($name) }
+                fn call(args: ($($t),*)) -> $rt {
+                    let ($($arg),*) = args;
+                    $body
+                }
+                fn args() -> u64 { count_args!($($arg),*) }
             }
-            fn args() -> u64 { count_args!($($arg),*) }
-        }
+        )*
     };
 }
 
 mod Test {
     use rdd::functions::RDDFunc;
-    def_rdd_func!(Test (a: u64, b: u64) -> u64 {
-        a + b
-    });
+    def_rdd_func!(
+        APlusB (a: u64, b: u64) -> u64 {
+            a + b
+        }
+        AMultB (a: u32, b: u32) -> u32 {
+            a * b
+        }
+    );
     #[test]
     fn test_a_plus_b_rdd() {
-        assert_eq!(Test::call((1, 2)), 3);
-        println!("a + b rdd function id is: {}", Test::id());
+        assert_eq!(APlusB::call((1, 2)), 3);
+        assert_eq!(AMultB::call((2, 3)), 6);
+        assert_ne!(APlusB::id(), AMultB::id());
     }
 }
