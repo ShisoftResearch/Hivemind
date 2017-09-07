@@ -11,8 +11,7 @@
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
-pub trait RDDFunc {
-
+pub trait  RDDFunc<F, FA, FR> where F: Fn(FA) -> FR {
 }
 
 macro_rules! count_args {
