@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use std::cell::{RefCell, BorrowMutError};
 use std::collections::HashMap;
+use std::mem::transmute;
 
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
@@ -15,10 +16,18 @@ use std::collections::HashMap;
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
+#[derive(Clone, Copy)]
 pub struct RegistryRDDFunc {
-    id: u64,
-    func_ptr: *const (),
-    args: u64 // for validation
+    pub id: u64,
+    pub func_ptr: *const (),
+    pub args: u64 // for validation
+}
+
+impl RegistryRDDFunc {
+    pub fn call<A, R>(&self, params: A) -> R {
+        let func = unsafe {transmute::<_, fn(A) -> R>(self.func_ptr)};
+        func(params)
+    }
 }
 
 pub struct Registry {
@@ -37,6 +46,10 @@ impl Registry {
             id: id, func_ptr: ptr, args: args
         });
         Ok(())
+    }
+    pub fn get<'a>(&self, id: u64) -> Option<RegistryRDDFunc> {
+        let m = self.map.borrow();
+        m.get(&id).cloned()
     }
 }
 
@@ -86,7 +99,7 @@ macro_rules! def_rdd_func {
 }
 
 mod Test {
-    use rdd::functions::RDDFunc;
+    use super::*;
     def_rdd_func!(
         APlusB (a: u64, b: u64) -> u64 {
             a + b
@@ -96,9 +109,23 @@ mod Test {
         }
     );
     #[test]
-    fn test_a_plus_b_rdd() {
+    fn test_a_b_rdd() {
         assert_eq!(APlusB::call((1, 2)), 3);
         assert_eq!(AMultB::call((2, 3)), 6);
         assert_ne!(APlusB::id(), AMultB::id());
+    }
+    #[test]
+    fn register_and_invoke_from_registry_by_ptr() {
+        APlusB::register().unwrap();
+        AMultB::register().unwrap();
+        let regFuncA = REGISTRY.get(APlusB::id()).unwrap();
+        let fA = unsafe {transmute::<_, fn((u64, u64)) -> u64>(regFuncA.func_ptr)};
+        assert_eq!(fA((1, 2)), 3);
+        let regFuncB = REGISTRY.get(AMultB::id()).unwrap();
+        let fB = unsafe {transmute::<_, fn((u32, u32)) -> u32>(regFuncB.func_ptr)};
+        assert_eq!(fB((2, 3)), 6);
+
+        assert_eq!(regFuncA.call::<(u64, u64), u64>((1, 2)), 3);
+        assert_eq!(regFuncB.call::<(u32, u32), u32>((2, 3)), 6);
     }
 }
