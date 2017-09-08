@@ -1,4 +1,6 @@
 use serde::{Serialize, Deserialize};
+use std::cell::{RefCell, BorrowMutError};
+use std::collections::HashMap;
 
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
@@ -13,14 +15,47 @@ use serde::{Serialize, Deserialize};
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
-pub trait RDDFunc<F, FA, FR>
-    where F: Fn(FA) -> FR,
-          FA: Serialize,
+pub struct RegistryRDDFunc {
+    id: u64,
+    func_ptr: *const (),
+    args: u64 // for validation
+}
+
+pub struct Registry {
+    map: RefCell<HashMap<u64, RegistryRDDFunc>>
+}
+
+impl Registry {
+    pub fn new() -> Registry {
+        Registry {
+            map: RefCell::new(HashMap::new())
+        }
+    }
+    pub fn register(&self, id: u64, ptr: *const (), args: u64) -> Result<(), BorrowMutError> {
+        let mut m = self.map.try_borrow_mut()?;
+        m.insert(id, RegistryRDDFunc {
+            id: id, func_ptr: ptr, args: args
+        });
+        Ok(())
+    }
+}
+
+unsafe impl Sync for Registry {}
+
+lazy_static! {
+    pub static ref REGISTRY: Registry = Registry::new();
+}
+
+pub trait RDDFunc<FA, FR>
+    where FA: Serialize,
           FR: Serialize
 {
     fn id() -> u64;
     fn call(args: FA) -> FR;
     fn args() -> u64;
+    fn register() -> Result<(), BorrowMutError> {
+        REGISTRY.register(Self::id(), Self::call as *const (), Self::args())
+    }
 }
 
 macro_rules! count_args {
@@ -38,7 +73,7 @@ macro_rules! def_rdd_func {
     ($($name: ident($($arg:ident : $t: ty),*) -> $rt:ty $body:block)*) => {
         $(
             pub struct $name;
-            impl RDDFunc<fn(($($t),*)) -> $rt, ($($t),*), $rt> for $name {
+            impl RDDFunc<($($t),*), $rt> for $name {
                 fn id() -> u64 { fn_id!($name) }
                 fn call(args: ($($t),*)) -> $rt {
                     let ($($arg),*) = args;
