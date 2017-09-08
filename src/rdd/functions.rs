@@ -24,8 +24,8 @@ pub struct RegistryRDDFunc {
 }
 
 impl RegistryRDDFunc {
-    pub fn call<A, R>(&self, params: A) -> R {
-        let func = unsafe {transmute::<_, fn(A) -> R>(self.func_ptr)};
+    pub unsafe fn call<A, R>(&self, params: A) -> R {
+        let func = transmute::<_, fn(A) -> R>(self.func_ptr);
         func(params)
     }
 }
@@ -125,7 +125,7 @@ mod Test {
         let fB = unsafe {transmute::<_, fn((u32, u32)) -> u32>(regFuncB.func_ptr)};
         assert_eq!(fB((2, 3)), 6);
 
-        assert_eq!(regFuncA.call::<(u64, u64), u64>((1, 2)), 3);
-        assert_eq!(regFuncB.call::<(u32, u32), u32>((2, 3)), 6);
+        assert_eq!(unsafe {regFuncA.call::<(u64, u64), u64>((1, 2))}, 3);
+        assert_eq!(unsafe {regFuncB.call::<(u32, u32), u32>((2, 3))}, 6);
     }
 }
