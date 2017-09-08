@@ -1,4 +1,3 @@
-use serde::{Serialize, Deserialize};
 use std::cell::{RefCell, BorrowMutError};
 use std::collections::HashMap;
 use std::mem::transmute;
@@ -59,10 +58,7 @@ lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
 }
 
-pub trait RDDFunc<FA, FR>
-    where FA: Serialize,
-          FR: Serialize
-{
+pub trait RDDFunc<FA, FR> {
     fn id() -> u64;
     fn call(args: FA) -> FR;
     fn args() -> u64;
