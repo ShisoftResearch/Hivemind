@@ -59,11 +59,11 @@ lazy_static! {
 }
 
 pub trait RDDFunc<FA, FR> {
+    const ARGS:u64;
     fn id() -> u64;
     fn call(args: FA) -> FR;
-    fn args() -> u64;
     fn register() -> Result<(), BorrowMutError> {
-        REGISTRY.register(Self::id(), Self::call as *const (), Self::args())
+        REGISTRY.register(Self::id(), Self::call as *const (), Self::ARGS)
     }
 }
 
@@ -83,12 +83,12 @@ macro_rules! def_rdd_func {
         $(
             pub struct $name;
             impl RDDFunc<($($t),*), $rt> for $name {
-                fn id() -> u64 { fn_id!($name) }
+                const ARGS: u64 = count_args!($($arg),*);
+                fn id() -> u64 {fn_id!($name)}
                 fn call(args: ($($t),*)) -> $rt {
                     let ($($arg),*) = args;
                     $body
                 }
-                fn args() -> u64 { count_args!($($arg),*) }
             }
         )*
     };
