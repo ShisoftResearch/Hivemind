@@ -13,4 +13,7 @@ pub trait RDD<IN> {
     fn flat_map<FN, OUT>(func: FN) -> FlatMapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
         unimplemented!()
     }
+    fn map_partitations<FN, OUT>(func: FN) -> MapPartitationsRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+        unimplemented!()
+    }
 }
