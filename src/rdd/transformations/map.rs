@@ -1,7 +1,7 @@
 use rdd::RDD;
 use std::marker::PhantomData;
 use contexts::task::TaskContext;
-use super::super::Partition;
+use super::super::{Partition, Dependency};
 
 pub struct MapRDD<FN, IN, OUT> {
     func_id: u64,
@@ -13,6 +13,9 @@ impl<FN, IN, OUT> RDD<IN> for MapRDD<FN, IN, OUT> {
         unimplemented!()
     }
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition {
+        unimplemented!()
+    }
+    fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
         unimplemented!()
     }
 }
