@@ -8,3 +8,4 @@ extern crate serde;
 extern crate lazy_static;
 
 mod rdd;
+mod contexts;
