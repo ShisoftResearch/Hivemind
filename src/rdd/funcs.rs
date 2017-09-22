@@ -79,9 +79,11 @@ macro_rules! fn_id {
 }
 
 macro_rules! def_rdd_func {
-    ($($name: ident($($arg:ident : $t: ty),*) -> $rt:ty $body:block)*) => {
+    ($($name: ident($($arg:ident : $t: ty),*)[$($carried:ident : $ct: ty),*] -> $rt:ty $body:block)*) => {
         $(
-            pub struct $name;
+            pub struct $name {
+                $($carried: $ct;)*
+            }
             impl RDDFunc<($($t),*), $rt> for $name {
                 const ARGS: u64 = count_args!($($arg),*);
                 fn id() -> u64 {fn_id!($name)}
@@ -97,10 +99,10 @@ macro_rules! def_rdd_func {
 mod Test {
     use super::*;
     def_rdd_func!(
-        APlusB (a: u64, b: u64) -> u64 {
+        APlusB (a: u64, b: u64)[] -> u64 {
             a + b
         }
-        AMultB (a: u32, b: u32) -> u32 {
+        AMultB (a: u32, b: u32)[] -> u32 {
             a * b
         }
     );
