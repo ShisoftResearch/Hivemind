@@ -16,6 +16,7 @@ pub trait RDD<IN> {
     fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition;
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
+    fn id(&self) -> u64;
 
     fn map<FN, OUT>(&self, func: FN) -> MapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
         unimplemented!()

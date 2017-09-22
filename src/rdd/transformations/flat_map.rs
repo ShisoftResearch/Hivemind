@@ -18,4 +18,7 @@ impl<FN, IN, OUT> RDD<IN> for FlatMapRDD<FN, IN, OUT> {
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
         unimplemented!()
     }
+    fn id(&self) -> u64 {
+        unimplemented!()
+    }
 }
