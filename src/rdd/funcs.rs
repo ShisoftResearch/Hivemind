@@ -23,9 +23,9 @@ pub struct RegistryRDDFunc {
 }
 
 impl RegistryRDDFunc {
-    pub unsafe fn call<A, R>(&self, params: A) -> R {
-        let func = transmute::<_, fn(A) -> R>(self.func_ptr);
-        func(params)
+    pub unsafe fn call<F, A, R>(&self, func_obj: &F, params: A) -> R where F: RDDFunc<A, R> {
+        let func = transmute::<_, fn(&F, A) -> R>(self.func_ptr);
+        func(func_obj, params)
     }
 }
 
@@ -61,7 +61,7 @@ lazy_static! {
 pub trait RDDFunc<FA, FR> {
     const ARGS:u64;
     fn id() -> u64;
-    fn call(args: FA) -> FR;
+    fn call(&self, args: FA) -> FR;
     fn register() -> Result<(), BorrowMutError> {
         REGISTRY.register(Self::id(), Self::call as *const (), Self::ARGS)
     }
@@ -79,16 +79,18 @@ macro_rules! fn_id {
 }
 
 macro_rules! def_rdd_func {
-    ($($name: ident($($arg:ident : $t: ty),*)[$($carried:ident : $ct: ty),*] -> $rt:ty $body:block)*) => {
+    ($($name: ident($($farg:ident : $argt: ty),*)
+                   [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) => {
         $(
             pub struct $name {
-                $($carried: $ct;)*
+               $(pub $enclosed: $ety),*
             }
-            impl RDDFunc<($($t),*), $rt> for $name {
-                const ARGS: u64 = count_args!($($arg),*);
+            impl RDDFunc<($($argt,)*), $rt> for $name {
+                const ARGS: u64 = count_args!($($farg),*);
                 fn id() -> u64 {fn_id!($name)}
-                fn call(args: ($($t),*)) -> $rt {
-                    let ($($arg),*) = args;
+                fn call(&self, args: ( $($argt,)*) ) -> $rt {
+                    let ( $($farg,)* ) = args;
+                    let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body
                 }
             }
@@ -105,25 +107,27 @@ mod Test {
         AMultB (a: u32, b: u32)[] -> u32 {
             a * b
         }
+        AMultC (a: u32)[c: u32] -> u32 {
+            a * c
+        }
     );
     #[test]
     fn test_a_b_rdd() {
-        assert_eq!(APlusB::call((1, 2)), 3);
-        assert_eq!(AMultB::call((2, 3)), 6);
+        assert_eq!(APlusB{}.call((1, 2)), 3);
+        assert_eq!(AMultB{}.call((2, 3)), 6);
         assert_ne!(APlusB::id(), AMultB::id());
     }
     #[test]
     fn register_and_invoke_from_registry_by_ptr() {
         APlusB::register().unwrap();
         AMultB::register().unwrap();
+        AMultC::register().unwrap();
         let regFuncA = REGISTRY.get(APlusB::id()).unwrap();
-        let fA = unsafe {transmute::<_, fn((u64, u64)) -> u64>(regFuncA.func_ptr)};
-        assert_eq!(fA((1, 2)), 3);
         let regFuncB = REGISTRY.get(AMultB::id()).unwrap();
-        let fB = unsafe {transmute::<_, fn((u32, u32)) -> u32>(regFuncB.func_ptr)};
-        assert_eq!(fB((2, 3)), 6);
+        let regFuncC = REGISTRY.get(AMultC::id()).unwrap();
 
-        assert_eq!(unsafe {regFuncA.call::<(u64, u64), u64>((1, 2))}, 3);
-        assert_eq!(unsafe {regFuncB.call::<(u32, u32), u32>((2, 3))}, 6);
+        assert_eq!(unsafe {regFuncA.call::<_, (u64, u64), u64>(&APlusB{}, (1, 2))}, 3);
+        assert_eq!(unsafe {regFuncB.call::<_, (u32, u32), u32>(&AMultB{}, (2, 3))}, 6);
+        assert_eq!(unsafe {regFuncC.call::<_, (u32,), u32>(&AMultC{c: 5}, (2,))}, 10);
     }
 }
