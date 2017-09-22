@@ -10,18 +10,19 @@ pub trait Partition {
 
 pub trait RDD<IN> {
 
-    fn compute<P, ITER>(partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition;
+    fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition;
+    fn get_partitions<P>(&self) -> Vec<P> where P: Partition;
 
-    fn map<FN, OUT>(func: FN) -> MapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn map<FN, OUT>(&self, func: FN) -> MapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
         unimplemented!()
     }
-    fn filter<FN>(func: FN) -> FilterRDD<FN, IN> where FN: RDDFunc<IN, bool> {
+    fn filter<FN>(&self, func: FN) -> FilterRDD<FN, IN> where FN: RDDFunc<IN, bool> {
         unimplemented!()
     }
-    fn flat_map<FN, OUT>(func: FN) -> FlatMapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn flat_map<FN, OUT>(&self, func: FN) -> FlatMapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
         unimplemented!()
     }
-    fn map_partitions<FN, OUT>(func: FN) -> MapPartitionsRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn map_partitions<FN, OUT>(&self, func: FN) -> MapPartitionsRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
         unimplemented!()
     }
 }

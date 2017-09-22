@@ -9,7 +9,10 @@ pub struct MapPartitionsRDD<FN, IN, OUT> {
 }
 
 impl<FN, IN, OUT> RDD<IN> for MapPartitionsRDD<FN, IN, OUT> {
-    fn compute<P, ITER>(partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition {
+    fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition {
+        unimplemented!()
+    }
+    fn get_partitions<P>(&self) -> Vec<P> where P: Partition {
         unimplemented!()
     }
 }
