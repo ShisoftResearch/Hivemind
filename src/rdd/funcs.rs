@@ -1,6 +1,7 @@
 use std::cell::{RefCell, BorrowMutError};
 use std::collections::HashMap;
 use std::mem::transmute;
+use serde::{Serialize, Deserialize};
 
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
@@ -58,7 +59,7 @@ lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
 }
 
-pub trait RDDFunc<FA, FR> {
+pub trait RDDFunc<FA, FR>: Serialize {
     const ARGS:u64;
     fn id() -> u64;
     fn call(&self, args: FA) -> FR;
@@ -82,6 +83,7 @@ macro_rules! def_rdd_func {
     ($($name: ident($($farg:ident : $argt: ty),*)
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) => {
         $(
+            #[derive(Serialize, Deserialize)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }

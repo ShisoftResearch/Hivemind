@@ -3,15 +3,16 @@ mod transformations;
 use self::funcs::RDDFunc;
 use self::transformations::*;
 use super::contexts::task::TaskContext;
+use serde::{Deserialize, Serialize};
 
-pub trait Partition {
+pub trait Partition: Serialize {
     fn index() -> u32;
 }
-pub trait Dependency {
+pub trait Dependency: Serialize {
     fn rdd<DD, T>() -> DD where DD: RDD<T>;
 }
 
-pub trait RDD<IN> {
+pub trait RDD<IN>: Serialize {
 
     fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition;
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition;
