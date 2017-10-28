@@ -7,28 +7,30 @@ use serde::{Deserialize, Serialize};
 
 pub trait Partition: Serialize {
     fn index() -> u32;
+    fn iter<T, OI>() -> OI where OI: Iterator<Item = T>;
 }
 pub trait Dependency: Serialize {
-    fn rdd<DD, T>() -> DD where DD: RDD<T>;
+    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;
 }
 
-pub trait RDD<IN>: Serialize {
+pub trait RDD<I, O>: Serialize {
 
-    fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition;
+    fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
+        where OI: Iterator<Item = O>, P: Partition;
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
     fn id(&self) -> u64;
 
-    fn map<FN, OUT>(&self, func: FN) -> MapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn map<F>(&self, func: F) -> MapRDD<F, I, O> where F: RDDFunc<I, O> {
         unimplemented!()
     }
-    fn filter<FN>(&self, func: FN) -> FilterRDD<FN, IN> where FN: RDDFunc<IN, bool> {
+    fn filter<F>(&self, func: F) -> FilterRDD<F, I> where F: RDDFunc<I, bool> {
         unimplemented!()
     }
-    fn flat_map<FN, OUT>(&self, func: FN) -> FlatMapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
         unimplemented!()
     }
-    fn map_partitions<FN, OUT>(&self, func: FN) -> MapPartitionsRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    fn map_partitions<F>(&self, func: F) -> MapPartitionsRDD<F, I, O> where F: RDDFunc<I, O> {
         unimplemented!()
     }
 }

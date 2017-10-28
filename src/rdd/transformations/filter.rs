@@ -4,13 +4,14 @@ use contexts::task::TaskContext;
 use super::super::{Partition, Dependency};
 
 #[derive(Serialize, Deserialize)]
-pub struct FilterRDD<FN, IN> {
+pub struct FilterRDD<F, I> {
     func_id: u64,
-    marker: PhantomData<(FN, IN)>
+    marker: PhantomData<(F, I)>
 }
 
-impl<FN, IN> RDD<IN> for FilterRDD<FN, IN> {
-    fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition {
+impl<F, I, O> RDD<I, O> for FilterRDD<F, I> {
+    fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
+        where OI: Iterator<Item = O>, P: Partition {
         unimplemented!()
     }
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition {

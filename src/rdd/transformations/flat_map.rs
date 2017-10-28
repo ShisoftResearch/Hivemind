@@ -4,13 +4,14 @@ use contexts::task::TaskContext;
 use super::super::{Partition, Dependency};
 
 #[derive(Serialize, Deserialize)]
-pub struct FlatMapRDD<FN, IN, OUT> {
+pub struct FlatMapRDD<F, I, O> {
     func_id: u64,
-    marker: PhantomData<(FN, IN, OUT)>
+    marker: PhantomData<(F, I, O)>
 }
 
-impl<FN, IN, OUT> RDD<IN> for FlatMapRDD<FN, IN, OUT> {
-    fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition {
+impl<F, I, O> RDD<I, O> for FlatMapRDD<F, I, O> {
+    fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
+        where OI: Iterator<Item = O>, P: Partition {
         unimplemented!()
     }
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition {
