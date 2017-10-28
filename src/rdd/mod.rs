@@ -6,8 +6,8 @@ use super::contexts::task::TaskContext;
 use serde::{Deserialize, Serialize};
 
 pub trait Partition: Serialize {
-    fn index() -> u32;
-    fn iter<T, OI>() -> OI where OI: Iterator<Item = T>;
+    fn index(&self) -> u32;
+    fn iter<T, I>(&self) -> I where I: Iterator<Item = T>;
 }
 pub trait Dependency: Serialize {
     fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;

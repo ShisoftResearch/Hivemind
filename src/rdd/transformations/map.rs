@@ -1,19 +1,21 @@
-use rdd::RDD;
+use rdd::{RDD, Partition, Dependency};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
 use contexts::task::TaskContext;
-use super::super::{Partition, Dependency};
+use std::iter::Map;
 
 #[derive(Serialize, Deserialize)]
-pub struct MapRDD<F, I, O> where F: RDDFunc<I, O> {
+pub struct MapRDD<F, I, O> where F: RDDFunc<(I), O> {
     closure: F,
     marker: PhantomData<(I, O)>
 }
 
-impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>  where F: RDDFunc<I, O> {
+impl<F, I, O> RDD<I, O> for MapRDD<F, I, O> where F: RDDFunc<(I), O> {
     fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
         where OI: Iterator<Item = O>, P: Partition {
-        unimplemented!()
+        partition
+            .iter()
+            .map(|x: I| self.closure.call((x)))
     }
     fn get_partitions<P>(&self) -> Vec<P> where P: Partition {
         unimplemented!()
