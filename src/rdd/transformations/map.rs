@@ -1,15 +1,16 @@
 use rdd::RDD;
+use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
 use contexts::task::TaskContext;
 use super::super::{Partition, Dependency};
 
 #[derive(Serialize, Deserialize)]
-pub struct MapRDD<FN, IN, OUT> {
-    func_id: u64,
-    marker: PhantomData<(FN, IN, OUT)>
+pub struct MapRDD<FN, IN, OUT> where FN: RDDFunc<IN, OUT> {
+    closure: FN,
+    marker: PhantomData<(IN, OUT)>
 }
 
-impl<FN, IN, OUT> RDD<IN> for MapRDD<FN, IN, OUT> {
+impl<FN, IN, OUT> RDD<IN> for MapRDD<FN, IN, OUT>  where FN: RDDFunc<IN, OUT> {
     fn compute<P, ITER>(&self, partition: P, context: &TaskContext) -> ITER where ITER: Iterator, P: Partition {
         unimplemented!()
     }
