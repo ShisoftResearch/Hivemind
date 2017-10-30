@@ -17,6 +17,7 @@ use serde::{Serialize, Deserialize};
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
 pub trait RDDFunc<FA, FR>: Serialize + Clone + Sized {
+    type ARGS;
     fn call<'a>(&self, args: FA) -> FR;
 }
 
@@ -40,7 +41,8 @@ macro_rules! def_rdd_func {
                $(pub $enclosed: $ety),*
             }
             impl RDDFunc<($($argt,)*), $rt> for $name {
-                fn call<'a>(&self, args: ( $($argt,)*) ) -> $rt {
+                type ARGS = ( $($argt,)*);
+                fn call<'a>(&self, args: Self::ARGS) -> $rt {
                     let ( $($farg,)* ) = args;
                     let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body

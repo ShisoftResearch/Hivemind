@@ -23,7 +23,7 @@ impl<F, I> RDD<I, I> for FilterRDD<F, I>
     {
         let closure = self.closure.clone();
         let p = move |x: &I| {
-            closure.call((x.clone()))
+            closure.call(x.clone())
         };
         let out = iter.filter(p);
         Box::new(out)
