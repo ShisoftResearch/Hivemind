@@ -42,7 +42,7 @@ macro_rules! def_rdd_func {
             }
             impl RDDFunc<($($argt,)*), $rt> for $name {
                 type ARGS = ( $($argt,)*);
-                fn call(&self, args: Self::ARGS) -> $rt {
+                fn call<'a>(&self, args: Self::ARGS) -> $rt {
                     let ( $($farg,)* ) = args;
                     let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body
@@ -64,11 +64,15 @@ mod Test {
         AMultC (a: u32)[c: u32] -> u32 {
             a * c
         }
+        ARefAddBRef(a: &'static u64, b: &'static u64)[] -> u64 {
+            a + b
+        }
     );
     #[test]
     fn test_a_b_rdd() {
         assert_eq!(APlusB{}.call((1, 2)), 3);
         assert_eq!(AMultB{}.call((2, 3)), 6);
         assert_eq!(AMultC{c: 5}.call((2,)), 10);
+        assert_eq!(ARefAddBRef{}.call((&1, &2)), 3)
     }
 }

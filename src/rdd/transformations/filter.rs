@@ -38,3 +38,11 @@ impl<F, I> RDD<I, I> for FilterRDD<F, I>
         unimplemented!()
     }
 }
+
+impl <F, I> FilterRDD <F, I> {
+    pub fn new<P>(predict: P) -> Box<FilterRDD<F, I>> {
+        let wrapper = |x: *const I| {
+            
+        }
+    }
+}
