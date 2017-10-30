@@ -9,18 +9,18 @@ pub struct FilterRDD<F, I> {
     marker: PhantomData<(F, I)>
 }
 
-impl<F, I, O> RDD<I, O> for FilterRDD<F, I> {
-    fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
-        where OI: Iterator<Item = O>, P: Partition {
-        unimplemented!()
-    }
-    fn get_partitions<P>(&self) -> Vec<P> where P: Partition {
-        unimplemented!()
-    }
-    fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
-        unimplemented!()
-    }
-    fn id(&self) -> u64 {
-        unimplemented!()
-    }
-}
+//impl<F, I, O> RDD<I, O> for FilterRDD<F, I> {
+//    fn compute<II, OI>(&self, iter: II, partition: &Partition, context: &TaskContext) -> OI
+//        where OI: Iterator<Item = O>, II: Iterator<Item = I> {
+//        unimplemented!()
+//    }
+//    fn get_partitions(&self) -> &Vec<Partition> {
+//        unimplemented!()
+//    }
+//    fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
+//        unimplemented!()
+//    }
+//    fn id(&self) -> u64 {
+//        unimplemented!()
+//    }
+//}

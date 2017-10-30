@@ -5,19 +5,22 @@ use self::transformations::*;
 use super::contexts::task::TaskContext;
 use serde::{Deserialize, Serialize};
 
-pub trait Partition: Serialize {
-    fn index(&self) -> u32;
-    fn iter<T, I>(&self) -> I where I: Iterator<Item = T>;
+#[derive(Serialize, Deserialize)]
+pub struct Partition {
+    index: u32
 }
 pub trait Dependency: Serialize {
-    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;
+    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>, I: 'static, O: 'static;
 }
 
-pub trait RDD<I, O>: Serialize {
-
-    fn compute<P, OI>(&self, partition: P, context: &TaskContext) -> OI
-        where OI: Iterator<Item = O>, P: Partition;
-    fn get_partitions<P>(&self) -> Vec<P> where P: Partition;
+pub trait RDD<I, O>: Serialize + 'static where I: 'static, O: 'static {
+    fn compute(
+        self,
+        iter: Box<Iterator<Item = I>>,
+        partition: &Partition,
+        context: &TaskContext
+    ) -> Box<Iterator<Item = O>>;
+    fn get_partitions(&self) -> &Vec<Partition>;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
     fn id(&self) -> u64;
 
