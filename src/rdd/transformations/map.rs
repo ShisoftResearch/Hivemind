@@ -2,16 +2,17 @@ use rdd::{RDD, Partition, Dependency};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
 use contexts::task::TaskContext;
-use std::iter::Map;
 
-#[derive(Serialize, Deserialize)]
-pub struct MapRDD<F, I, O> where F: RDDFunc<(I), O> {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MapRDD<F, I, O> {
     closure: F,
     marker: PhantomData<(I, O)>
 }
 
 impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
-    where F: RDDFunc<(I), O> + 'static, I: 'static, O: 'static
+    where F: RDDFunc<(I), O> + 'static + Clone,
+          I: 'static + Clone,
+          O: 'static + Clone
 {
     fn compute(
         &self,

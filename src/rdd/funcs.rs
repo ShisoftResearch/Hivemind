@@ -16,8 +16,8 @@ use serde::{Serialize, Deserialize};
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
-pub trait RDDFunc<FA, FR>: Serialize + Clone {
-    fn call(&self, args: FA) -> FR;
+pub trait RDDFunc<FA, FR>: Serialize + Clone + Sized {
+    fn call<'a>(&self, args: FA) -> FR;
 }
 
 macro_rules! count_args {
@@ -40,7 +40,7 @@ macro_rules! def_rdd_func {
                $(pub $enclosed: $ety),*
             }
             impl RDDFunc<($($argt,)*), $rt> for $name {
-                fn call(&self, args: ( $($argt,)*) ) -> $rt {
+                fn call<'a>(&self, args: ( $($argt,)*) ) -> $rt {
                     let ( $($farg,)* ) = args;
                     let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body

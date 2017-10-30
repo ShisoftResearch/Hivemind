@@ -10,10 +10,10 @@ pub struct Partition {
     index: u32
 }
 pub trait Dependency: Serialize {
-    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>, I: 'static, O: 'static;
+    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;
 }
 
-pub trait RDD<I, O>: Serialize  {
+pub trait RDD<I, O>: Serialize + Clone {
     fn compute(
         &self,
         iter: Box<Iterator<Item = I>>,
@@ -27,13 +27,13 @@ pub trait RDD<I, O>: Serialize  {
     fn map<F>(&self, func: F) -> MapRDD<F, I, O> where F: RDDFunc<I, O> {
         unimplemented!()
     }
-    fn filter<F>(&self, func: F) -> FilterRDD<F, I> where F: RDDFunc<I, bool> {
-        unimplemented!()
-    }
-    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
-        unimplemented!()
-    }
-    fn map_partitions<F>(&self, func: F) -> MapPartitionsRDD<F, I, O> where F: RDDFunc<I, O> {
-        unimplemented!()
-    }
+//    fn filter<'a, F>(&self, func: F) -> FilterRDD<F, I> where F: RDDFunc<(&'a I), bool>, I: 'static {
+//        unimplemented!()
+//    }
+//    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
+//        unimplemented!()
+//    }
+//    fn map_partitions<F>(&self, func: F) -> MapPartitionsRDD<F, I, O> where F: RDDFunc<I, O> {
+//        unimplemented!()
+//    }
 }
