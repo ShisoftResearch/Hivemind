@@ -5,8 +5,8 @@ use contexts::task::TaskContext;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MapRDD<F, I, O> {
-    closure: F,
-    marker: PhantomData<(I, O)>
+    pub closure: F,
+    pub marker: PhantomData<(I, O)>
 }
 
 impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
@@ -32,5 +32,14 @@ impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
     }
     fn id(&self) -> u64 {
         unimplemented!()
+    }
+}
+
+impl <F, I, O> MapRDD <F, I, O> {
+    pub fn new(func: F) -> MapRDD<F, I ,O> {
+        MapRDD {
+            closure: func,
+            marker: PhantomData
+        }
     }
 }

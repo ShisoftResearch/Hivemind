@@ -24,12 +24,12 @@ pub trait RDD<I, O>: Serialize + Clone {
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
     fn id(&self) -> u64;
 
-    fn map<F>(&self, func: F) -> MapRDD<F, I, O> where F: RDDFunc<I, O> {
-        unimplemented!()
+    fn map<F>(&self, func: F) -> MapRDD<F, I, O> {
+        MapRDD::new(func)
     }
-//    fn filter<'a, F>(&self, func: F) -> FilterRDD<F, I> where F: RDDFunc<(&'a I), bool>, I: 'static {
-//        unimplemented!()
-//    }
+    fn filter<'a, F>(&self, func: F) -> FilterRDD<F, I> {
+        FilterRDD::new(func)
+    }
 //    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
 //        unimplemented!()
 //    }
