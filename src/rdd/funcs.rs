@@ -16,7 +16,7 @@ use serde::{Serialize, Deserialize};
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
 
-pub trait RDDFunc<FA, FR>: Serialize {
+pub trait RDDFunc<FA, FR>: Serialize + Clone {
     fn call(&self, args: FA) -> FR;
 }
 
@@ -35,7 +35,7 @@ macro_rules! def_rdd_func {
     ($($name: ident($($farg:ident : $argt: ty),*)
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) => {
         $(
-            #[derive(Serialize, Deserialize)]
+            #[derive(Serialize, Deserialize, Clone)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }

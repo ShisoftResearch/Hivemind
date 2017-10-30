@@ -13,9 +13,9 @@ pub trait Dependency: Serialize {
     fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>, I: 'static, O: 'static;
 }
 
-pub trait RDD<I, O>: Serialize + 'static where I: 'static, O: 'static {
+pub trait RDD<I, O>: Serialize  {
     fn compute(
-        self,
+        &self,
         iter: Box<Iterator<Item = I>>,
         partition: &Partition,
         context: &TaskContext

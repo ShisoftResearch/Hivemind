@@ -11,17 +11,18 @@ use std::iter::Map;
     }
 
     impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
-        where F: RDDFunc<(I), O>, I: 'static, O: 'static, F: 'static
+        where F: RDDFunc<(I), O> + 'static, I: 'static, O: 'static
     {
         fn compute(
-            self,
+            &self,
             iter: Box<Iterator<Item = I>>,
             partition: &Partition,
             context: &TaskContext
         )
             -> Box<Iterator<Item = O>>
         {
-            Box::new(iter.map(move |x| self.closure.call((x))))
+            let closure = self.closure.clone();
+            Box::new(iter.map(move |x| closure.call((x))))
         }
         fn get_partitions(&self) -> &Vec<Partition> {
             unimplemented!()
