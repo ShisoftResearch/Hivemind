@@ -18,7 +18,7 @@ use serde::{Serialize, Deserialize};
 
 pub trait RDDFunc<FA, FR>: Serialize + Clone + Sized {
     type ARGS;
-    fn call<'a>(&self, args: FA) -> FR;
+    fn call(&self, args: FA) -> FR;
 }
 
 macro_rules! count_args {
@@ -42,7 +42,7 @@ macro_rules! def_rdd_func {
             }
             impl RDDFunc<($($argt,)*), $rt> for $name {
                 type ARGS = ( $($argt,)*);
-                fn call<'a>(&self, args: Self::ARGS) -> $rt {
+                fn call(&self, args: Self::ARGS) -> $rt {
                     let ( $($farg,)* ) = args;
                     let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body

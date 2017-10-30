@@ -5,7 +5,7 @@ use serde::Serialize;
 use contexts::task::TaskContext;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct FilterRDD<F, I> where F: RDDFunc<(I), bool> + Clone {
+pub struct FilterRDD<F, I> {
     closure: F,
     marker: PhantomData<I>
 }
@@ -23,7 +23,7 @@ impl<F, I> RDD<I, I> for FilterRDD<F, I>
     {
         let closure = self.closure.clone();
         let p = move |x: &I| {
-            closure.call(x.clone())
+            closure.call(x.clone()) // TODO: noclone
         };
         let out = iter.filter(p);
         Box::new(out)
