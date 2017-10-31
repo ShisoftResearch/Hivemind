@@ -1,7 +1,6 @@
 use rdd::{RDD, Partition, Dependency};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
-use contexts::task::TaskContext;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MapRDD<F, I, O> {
@@ -18,8 +17,7 @@ impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
     fn compute(
         &self,
         iter: Box<Iterator<Item = I>>,
-        partition: &Partition,
-        context: &TaskContext
+        partition: &Partition
     ) -> Box<Iterator<Item = O>>
     {
         let closure = self.closure.clone();

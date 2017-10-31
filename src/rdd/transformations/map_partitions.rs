@@ -1,6 +1,5 @@
 use rdd::RDD;
 use std::marker::PhantomData;
-use contexts::task::TaskContext;
 use super::super::{Partition, Dependency};
 
 //#[derive(Serialize, Deserialize)]

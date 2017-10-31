@@ -2,7 +2,7 @@ mod funcs;
 mod transformations;
 use self::funcs::RDDFunc;
 use self::transformations::*;
-use super::contexts::task::TaskContext;
+use super::contexts::TaskContext;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -18,7 +18,6 @@ pub trait RDD<I, O>: Serialize + Clone {
         &self,
         iter: Box<Iterator<Item = I>>,
         partition: &Partition,
-        context: &TaskContext
     ) -> Box<Iterator<Item = O>>;
     fn get_partitions(&self) -> &Vec<Partition>;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;

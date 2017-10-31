@@ -2,7 +2,6 @@ use rdd::{RDD, Partition, Dependency};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
 use serde::Serialize;
-use contexts::task::TaskContext;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FilterRDD<F, I> {
@@ -18,8 +17,7 @@ impl<F, I> RDD<I, I> for FilterRDD<F, I>
     fn compute (
         &self,
         iter: Box<Iterator<Item = I>>,
-        partition: &Partition,
-        context: &TaskContext
+        partition: &Partition
     ) -> Box<Iterator<Item = I>>
     {
         let closure = self.closure.clone();
