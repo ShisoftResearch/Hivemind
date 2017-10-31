@@ -6,6 +6,7 @@ use contexts::task::TaskContext;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FilterRDD<F, I> {
+    id: u64,
     closure: F,
     marker: PhantomData<I>
 }
@@ -34,14 +35,14 @@ impl<F, I> RDD<I, I> for FilterRDD<F, I>
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
         unimplemented!()
     }
-    fn id(&self) -> u64 {
-        unimplemented!()
-    }
+    fn id(&self) -> u64 { self.id }
+    fn set_id(&mut self, id: u64) { self.id = id }
 }
 
 impl <F, I> FilterRDD <F, I> {
     pub fn new(func: F) -> FilterRDD<F, I> {
         FilterRDD {
+            id: 0,
             closure: func,
             marker: PhantomData
         }

@@ -23,11 +23,11 @@ pub trait RDD<I, O>: Serialize + Clone {
     fn get_partitions(&self) -> &Vec<Partition>;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
     fn id(&self) -> u64;
-
+    fn set_id(&mut self, id: u64);
     fn map<F>(&self, func: F) -> MapRDD<F, I, O> {
         MapRDD::new(func)
     }
-    fn filter<'a, F>(&self, func: F) -> FilterRDD<F, I> {
+    fn filter<F>(&self, func: F) -> FilterRDD<F, I> {
         FilterRDD::new(func)
     }
 //    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
