@@ -4,6 +4,22 @@ use self::funcs::RDDFunc;
 use self::transformations::*;
 use super::contexts::TaskContext;
 use serde::{Deserialize, Serialize};
+use std::any::{Any, TypeId};
+use uuid::Uuid;
+
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct RDDID {
+    bytes: [u8; 16],
+}
+
+impl RDDID {
+    pub fn rand() -> RDDID {
+        let uuid = Uuid::new_v4();
+        RDDID {
+            bytes: *(uuid.as_bytes())
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Partition {
@@ -13,7 +29,7 @@ pub trait Dependency: Serialize {
     fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;
 }
 
-pub trait RDD<I, O>: Serialize + Clone {
+pub trait RDD<I, O>: Any + Serialize + Clone {
     fn compute(
         &self,
         iter: Box<Iterator<Item = I>>,
@@ -21,8 +37,7 @@ pub trait RDD<I, O>: Serialize + Clone {
     ) -> Box<Iterator<Item = O>>;
     fn get_partitions(&self) -> &Vec<Partition>;
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
-    fn id(&self) -> u64;
-    fn set_id(&mut self, id: u64);
+    fn id(&self) -> RDDID;
     fn map<F>(&self, func: F) -> MapRDD<F, I, O> {
         MapRDD::new(func)
     }

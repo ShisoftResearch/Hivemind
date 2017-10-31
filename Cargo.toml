@@ -11,7 +11,9 @@ bifrost = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
 bifrost_plugins = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
 bifrost_hasher = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
 lazy_static = "*"
-uuid = "0.5"
+uuid = { version = "0.5", features = ["v4"] }
+parking_lot = "0.4"
+
 [lib]
 name = "hivemind"
 

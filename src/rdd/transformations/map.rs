@@ -1,10 +1,11 @@
-use rdd::{RDD, Partition, Dependency};
+use rdd::{RDD, Partition, Dependency, RDDID};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MapRDD<F, I, O> {
-    id: u64,
+    id: RDDID,
     closure: F,
     marker: PhantomData<(I, O)>
 }
@@ -29,14 +30,13 @@ impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
     fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
         unimplemented!()
     }
-    fn id(&self) -> u64 { self.id }
-    fn set_id(&mut self, id: u64) { self.id = id }
+    fn id(&self) -> RDDID { self.id }
 }
 
 impl <F, I, O> MapRDD <F, I, O> {
     pub fn new(func: F) -> MapRDD<F, I ,O> {
         MapRDD {
-            id: 0,
+            id: RDDID::rand(),
             closure: func,
             marker: PhantomData
         }
