@@ -15,10 +15,54 @@ use serde::{Serialize, Deserialize};
 
 // Spark like RDD closure may not be possible because manual register require a identifier.
 // To ensure partial safety, it will only check number of parameter for RDD functions
+#[derive(Clone, Copy)]
+pub struct RegistryRDDFunc {
+    pub id: u64,
+    pub func_ptr: *const (),
+    pub args: u64 // for validation
+}
 
-pub trait RDDFunc<FA, FR>: Serialize + Clone + Sized {
-    type ARGS;
-    fn call(&self, args: FA) -> FR;
+impl RegistryRDDFunc {
+//    pub unsafe fn call<F, A, R>(&self, func_obj: &F, params: A) -> R where F: RDDFunc<A, R> {
+//        let func = transmute::<_, fn(&F, A) -> R>(self.func_ptr);
+//        func(func_obj, params)
+//    }
+}
+
+pub struct Registry {
+    map: RefCell<HashMap<u64, RegistryRDDFunc>>
+}
+
+impl Registry {
+    pub fn new() -> Registry {
+        Registry {
+            map: RefCell::new(HashMap::new())
+        }
+    }
+    pub fn register(&self, id: u64, ptr: *const (), args: u64) -> Result<(), BorrowMutError> {
+        let mut m = self.map.try_borrow_mut()?;
+        m.insert(id, RegistryRDDFunc {
+            id: id, func_ptr: ptr, args: args
+        });
+        Ok(())
+    }
+    pub fn get<'a>(&self, id: u64) -> Option<RegistryRDDFunc> {
+        let m = self.map.borrow();
+        m.get(&id).cloned()
+    }
+}
+
+unsafe impl Sync for Registry {}
+
+lazy_static! {
+    pub static ref REGISTRY: Registry = Registry::new();
+}
+
+pub trait RDDFunc {
+    fn call<ARGS, FR>(&self, args: ARGS) -> FR
+        where ARGS: ::std::any::Any,
+              FR:   ::std::any::Any;
+    fn id() -> u64;
 }
 
 macro_rules! count_args {
@@ -40,19 +84,22 @@ macro_rules! def_rdd_func {
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
-            impl RDDFunc<($($argt,)*), $rt> for $name {
-                type ARGS = ( $($argt,)*);
-                fn call<'a>(&self, args: Self::ARGS) -> $rt {
+            impl RDDFunc for $name {
+                fn call<ARGS>(this: Self, args: ARGS) -> $rt where ARGS: ::std::any::Any {
+                    let value_any = args as &::std::any::Any;
                     let ( $($farg,)* ) = args;
                     let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
                     $body
+                }
+                fn id() -> u64 {
+                    fn_id!($name)
                 }
             }
         )*
     };
 }
 
-mod Test {
+mod test {
     use super::*;
     def_rdd_func!(
         APlusB (a: u64, b: u64)[] -> u64 {

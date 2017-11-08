@@ -1,21 +1,15 @@
-use rdd::{RDD, Partition, Dependency, RDDID};
+use rdd::{RDD, Partition, RDDID};
 use rdd::funcs::RDDFunc;
 use std::marker::PhantomData;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct MapRDD<F, I, O> {
+pub struct MapRDD {
     id: RDDID,
-    closure: F,
-    marker: PhantomData<(I, O)>
+    closure: Box<RDDFunc>
 }
 
-impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
-    where F: RDDFunc<(I), O> + 'static + Clone,
-          I: 'static + Clone,
-          O: 'static + Clone
-{
-    fn compute(
+impl RDD for MapRDD {
+    fn compute<I, O>(
         &self,
         iter: Box<Iterator<Item = I>>,
         partition: &Partition
@@ -27,18 +21,19 @@ impl<F, I, O> RDD<I, O> for MapRDD<F, I, O>
     fn get_partitions(&self) -> &Vec<Partition> {
         unimplemented!()
     }
-    fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency {
+    fn get_dependencies(&self) -> &Vec<&Box<RDD>> {
         unimplemented!()
     }
     fn id(&self) -> RDDID { self.id }
 }
 
-impl <F, I, O> MapRDD <F, I, O> {
-    pub fn new(func: F) -> MapRDD<F, I ,O> {
+impl MapRDD  {
+    pub fn new<F>(func: F) -> MapRDD
+        where F: RDDFunc
+    {
         MapRDD {
             id: RDDID::rand(),
-            closure: func,
-            marker: PhantomData
+            closure: Box::new(func),
         }
     }
 }

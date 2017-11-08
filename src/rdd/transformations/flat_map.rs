@@ -1,8 +1,7 @@
 use rdd::RDD;
 use std::marker::PhantomData;
-use super::super::{Partition, Dependency};
+use super::super::{Partition};
 
-//#[derive(Serialize, Deserialize)]
 //pub struct FlatMapRDD<F, I, O> {
 //    func_id: u64,
 //    marker: PhantomData<(F, I, O)>

@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate lazy_static;
 extern crate uuid;
 extern crate parking_lot;
+extern crate typedef;
 
 mod rdd;
 mod contexts;

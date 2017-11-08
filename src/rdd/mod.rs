@@ -3,11 +3,9 @@ mod transformations;
 use self::funcs::RDDFunc;
 use self::transformations::*;
 use super::contexts::TaskContext;
-use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct RDDID {
     bytes: [u8; 16],
 }
@@ -21,27 +19,23 @@ impl RDDID {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct Partition {
     index: u32
 }
-pub trait Dependency: Serialize {
-    fn rdd<DD, I, O>() -> DD where DD: RDD<I, O>;
-}
 
-pub trait RDD<I, O>: Any + Serialize + Clone {
-    fn compute(
+pub trait RDD: Any {
+    fn compute<I, O>(
         &self,
         iter: Box<Iterator<Item = I>>,
         partition: &Partition,
     ) -> Box<Iterator<Item = O>>;
     fn get_partitions(&self) -> &Vec<Partition>;
-    fn get_dependencies<DEP>(&self) -> Vec<DEP> where DEP: Dependency;
+    fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
     fn id(&self) -> RDDID;
-    fn map<F>(&self, func: F) -> MapRDD<F, I, O> {
+    fn map<F>(&self, func: F) -> MapRDD {
         MapRDD::new(func)
     }
-    fn filter<F>(&self, func: F) -> FilterRDD<F, I> {
+    fn filter<F>(&self, func: F) -> FilterRDD {
         FilterRDD::new(func)
     }
 //    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
@@ -51,3 +45,9 @@ pub trait RDD<I, O>: Any + Serialize + Clone {
 //        unimplemented!()
 //    }
 }
+
+
+pub struct RDDC {
+    raw_bytes: Option<Vec<u8>>
+}
+
