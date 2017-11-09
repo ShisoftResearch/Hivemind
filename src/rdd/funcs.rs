@@ -29,8 +29,7 @@ impl RegistryRDDFunc {
               A: Any
     {
         let func = transmute::<_, fn(&F, Box<Any>) -> RDDFuncResult>(self.func_ptr);
-        let result = func(func_obj, Box::new(params));
-        result.cast()
+        func(func_obj, Box::new(params)).cast()
     }
 }
 
