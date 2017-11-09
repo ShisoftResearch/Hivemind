@@ -20,14 +20,18 @@ use std::any::Any;
 pub struct RegistryRDDFunc {
     pub id: u64,
     pub func_ptr: *const (),
-    pub args: u64 // for validation
 }
 
 impl RegistryRDDFunc {
-//    pub unsafe fn call<F, A, R>(&self, func_obj: &F, params: A) -> R where F: RDDFunc<A, R> {
-//        let func = transmute::<_, fn(&F, A) -> R>(self.func_ptr);
-//        func(func_obj, params)
-//    }
+    pub unsafe fn call<F, A, R>(&self, func_obj: &F, params: A) -> Result<R, String>
+        where F: RDDFunc,
+              R: Any + Clone,
+              A: Any
+    {
+        let func = transmute::<_, fn(&F, Box<Any>) -> RDDFuncResult>(self.func_ptr);
+        let result = func(func_obj, Box::new(params));
+        result.cast()
+    }
 }
 
 pub struct Registry {
@@ -40,10 +44,10 @@ impl Registry {
             map: RefCell::new(HashMap::new())
         }
     }
-    pub fn register(&self, id: u64, ptr: *const (), args: u64) -> Result<(), BorrowMutError> {
+    pub fn register(&self, id: u64, ptr: *const ()) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
         m.insert(id, RegistryRDDFunc {
-            id: id, func_ptr: ptr, args: args
+            id, func_ptr: ptr
         });
         Ok(())
     }
@@ -86,9 +90,13 @@ impl RDDFuncResult {
     }
 }
 
-pub trait RDDFunc {
+pub trait RDDFunc: Serialize {
     fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult;
-    fn id(&self) -> u64;
+    fn id() -> u64;
+    fn decode(bytes: &Vec<u8>) -> Self where Self: Sized;
+    fn register() -> Result<(), BorrowMutError> {
+        REGISTRY.register(Self::id(), Self::call as *const ())
+    }
 }
 
 macro_rules! count_args {
@@ -124,8 +132,11 @@ macro_rules! def_rdd_func {
                         }
                     }
                 }
-                fn id(&self) -> u64 {
+                fn id() -> u64 {
                     fn_id!($name)
+                }
+                fn decode(bytes: &Vec<u8>) -> Self where Self: Sized {
+                    ::bifrost::utils::bincode::deserialize(bytes)
                 }
             }
         )*
@@ -150,5 +161,18 @@ mod test {
         assert_eq!(APlusB{}.call(Box::new((1 as u64, 2 as u64))).cast::<u64>().unwrap(), 3);
         assert_eq!(AMultB{}.call(Box::new((2 as u32, 3 as u32))).cast::<u32>().unwrap(), 6);
         assert_eq!(AMultC{c: 5}.call(Box::new((2 as u32,))).cast::<u32>().unwrap(), 10);
+    }
+    #[test]
+    fn register_and_invoke_from_registry_by_ptr() {
+        APlusB::register().unwrap();
+        AMultB::register().unwrap();
+        AMultC::register().unwrap();
+        let reg_func_a = REGISTRY.get(APlusB::id()).unwrap();
+        let reg_func_b = REGISTRY.get(AMultB::id()).unwrap();
+        let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
+
+        assert_eq!(unsafe { reg_func_a.call::<_, (u64, u64), u64>(&APlusB{}, (1, 2)).unwrap()}, 3);
+        assert_eq!(unsafe { reg_func_b.call::<_, (u32, u32), u32>(&AMultB{}, (2, 3)).unwrap()}, 6);
+        assert_eq!(unsafe { reg_func_c.call::<_, (u32,), u32>(&AMultC{c: 5}, (2,)).unwrap()}, 10);
     }
 }
