@@ -2,6 +2,7 @@ use std::cell::{RefCell, BorrowMutError};
 use std::collections::HashMap;
 use std::mem::transmute;
 use serde::{Serialize, Deserialize};
+use std::any::Any;
 
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
@@ -58,11 +59,36 @@ lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
 }
 
+#[derive(Debug)]
+pub enum RDDFuncResult {
+    Ok(Box<Any>),
+    Err(String)
+}
+
+impl RDDFuncResult {
+    pub fn cast<T: Clone + 'static>(&self) -> Result<T, String>
+    {
+        match self {
+            &RDDFuncResult::Ok(ref data) => {
+                match data.downcast_ref::<T>() {
+                    Some(res) => {
+                        return Ok(res.clone())
+                    },
+                    None => {
+                        return Err(format!("RDD result type mismatch"))
+                    }
+                }
+            },
+            &RDDFuncResult::Err(ref e) => {
+                return Err(format!("RDD result is error: {}", e))
+            }
+        }
+    }
+}
+
 pub trait RDDFunc {
-    fn call<ARGS, FR>(&self, args: ARGS) -> FR
-        where ARGS: ::std::any::Any,
-              FR:   ::std::any::Any;
-    fn id() -> u64;
+    fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult;
+    fn id(&self) -> u64;
 }
 
 macro_rules! count_args {
@@ -78,20 +104,27 @@ macro_rules! fn_id {
 
 macro_rules! def_rdd_func {
     ($($name: ident($($farg:ident : $argt: ty),*)
-                   [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) => {
+                   [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
+    {
         $(
             #[derive(Serialize, Deserialize, Clone)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
             impl RDDFunc for $name {
-                fn call<ARGS>(this: Self, args: ARGS) -> $rt where ARGS: ::std::any::Any {
-                    let value_any = args as &::std::any::Any;
-                    let ( $($farg,)* ) = args;
-                    let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
-                    $body
+                fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult {
+                    match args.downcast_ref::<( $($argt,)* )>() {
+                        Some(args) => {
+                            let &( $($farg,)* ) = args;
+                            let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
+                            return RDDFuncResult::Ok(Box::new($body as $rt));
+                        },
+                        None => {
+                            return RDDFuncResult::Err(format!("Cannot cast type: {:?}", args));
+                        }
+                    }
                 }
-                fn id() -> u64 {
+                fn id(&self) -> u64 {
                     fn_id!($name)
                 }
             }
@@ -111,15 +144,11 @@ mod test {
         AMultC (a: u32)[c: u32] -> u32 {
             a * c
         }
-        ARefAddBRef(a: &'static u64, b: &'static u64)[] -> u64 {
-            a + b
-        }
     );
     #[test]
     fn test_a_b_rdd() {
-        assert_eq!(APlusB{}.call((1, 2)), 3);
-        assert_eq!(AMultB{}.call((2, 3)), 6);
-        assert_eq!(AMultC{c: 5}.call((2,)), 10);
-        assert_eq!(ARefAddBRef{}.call((&1, &2)), 3)
+        assert_eq!(APlusB{}.call(Box::new((1 as u64, 2 as u64))).cast::<u64>().unwrap(), 3);
+        assert_eq!(AMultB{}.call(Box::new((2 as u32, 3 as u32))).cast::<u32>().unwrap(), 6);
+        assert_eq!(AMultC{c: 5}.call(Box::new((2 as u32,))).cast::<u32>().unwrap(), 10);
     }
 }

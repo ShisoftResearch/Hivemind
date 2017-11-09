@@ -1,11 +1,11 @@
 mod funcs;
-mod transformations;
 use self::funcs::RDDFunc;
-use self::transformations::*;
+// use self::transformations::*;
 use super::contexts::TaskContext;
 use std::any::{Any, TypeId};
 use uuid::Uuid;
 
+#[derive(Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct RDDID {
     bytes: [u8; 16],
 }
@@ -24,20 +24,20 @@ pub struct Partition {
 }
 
 pub trait RDD: Any {
-    fn compute<I, O>(
+    fn compute(
         &self,
-        iter: Box<Iterator<Item = I>>,
+        iter: Box<Iterator<Item = Any>>,
         partition: &Partition,
-    ) -> Box<Iterator<Item = O>>;
+    ) -> Box<Iterator<Item = Any>>;
     fn get_partitions(&self) -> &Vec<Partition>;
     fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
     fn id(&self) -> RDDID;
-    fn map<F>(&self, func: F) -> MapRDD {
-        MapRDD::new(func)
-    }
-    fn filter<F>(&self, func: F) -> FilterRDD {
-        FilterRDD::new(func)
-    }
+//    fn map(&self, func: Box<RDDFunc>) -> MapRDD {
+//        MapRDD::new(func)
+//    }
+//    fn filter(&self, func: Box<RDDFunc>) -> FilterRDD {
+//        FilterRDD::new(func)
+//    }
 //    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
 //        unimplemented!()
 //    }
