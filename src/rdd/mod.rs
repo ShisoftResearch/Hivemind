@@ -7,7 +7,11 @@ use uuid::Uuid;
 pub mod funcs;
 pub mod script;
 
-#[derive(Ord, PartialOrd, PartialEq, Eq, Hash)]
+#[derive(
+    Ord, PartialOrd, PartialEq, Eq, Hash,
+    Copy, Clone,
+    Serialize, Deserialize
+)]
 pub struct RDDID {
     bytes: [u8; 16],
 }
