@@ -122,7 +122,7 @@ macro_rules! def_rdd_func {
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
     {
         $(
-            #[derive(Serialize, Deserialize, Clone)]
+            #[derive(Serialize, Deserialize)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }

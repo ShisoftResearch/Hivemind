@@ -1,9 +1,11 @@
-mod funcs;
 use self::funcs::RDDFunc;
 // use self::transformations::*;
 use super::contexts::TaskContext;
 use std::any::{Any, TypeId};
 use uuid::Uuid;
+
+pub mod funcs;
+pub mod script;
 
 #[derive(Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct RDDID {

@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
 
+pub mod script;
+
 // #[derive(Serialize, Deserialize, Clone)]
 pub struct TaskContext {
     rdds: RefCell<HashMap<RDDID, Box<Any>>>

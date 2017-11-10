@@ -1,7 +1,8 @@
 
 // only for RDD transport
+#[derive(Serialize, Deserialize)]
 pub struct RDDScript {
-    deps: Vec<u64>,
-    func_id: u64,
-    closure: Vec<u8>
+    pub func_id: u64,
+    pub deps: Vec<u64>,
+    pub closure: Vec<u8>
 }
