@@ -122,7 +122,7 @@ macro_rules! def_rdd_func {
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
     {
         $(
-            #[derive(Serialize, Deserialize)]
+            #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
@@ -152,6 +152,9 @@ macro_rules! def_rdd_func {
 
 mod test {
     use super::*;
+    use parking_lot::Mutex;
+    use bifrost::utils::bincode;
+
     def_rdd_func!(
         APlusB (a: u64, b: u64)[] -> u64 {
             a + b
@@ -163,6 +166,19 @@ mod test {
             a * c
         }
     );
+    lazy_static!{
+        pub static ref INIT_LOCK: Mutex<bool> = Mutex::new(false);
+    }
+    fn prepare_registry() {
+        let mut inited = INIT_LOCK.lock();
+        if *inited {
+            return;
+        }
+        APlusB::register().unwrap();
+        AMultB::register().unwrap();
+        AMultC::register().unwrap();
+        *inited = true;
+    }
     #[test]
     fn test_a_b_rdd() {
         assert_eq!(APlusB{}.call(Box::new((1 as u64, 2 as u64))).cast::<u64>().unwrap(), 3);
@@ -171,9 +187,7 @@ mod test {
     }
     #[test]
     fn register_and_invoke_from_registry_by_ptr() {
-        APlusB::register().unwrap();
-        AMultB::register().unwrap();
-        AMultC::register().unwrap();
+        prepare_registry();
         let reg_func_a = REGISTRY.get(APlusB::id()).unwrap();
         let reg_func_b = REGISTRY.get(AMultB::id()).unwrap();
         let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
@@ -181,5 +195,23 @@ mod test {
         assert_eq!(unsafe { reg_func_a.call::<_, (u64, u64), u64>(&APlusB{}, (1, 2)).unwrap()}, 3);
         assert_eq!(unsafe { reg_func_b.call::<_, (u32, u32), u32>(&AMultB{}, (2, 3)).unwrap()}, 6);
         assert_eq!(unsafe { reg_func_c.call::<_, (u32,), u32>(&AMultC{c: 5}, (2,)).unwrap()}, 10);
+    }
+    #[test]
+    fn decode_from_register() {
+        prepare_registry();
+        let reg_func_a = REGISTRY.get(APlusB::id()).unwrap();
+        let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
+
+        let ai = APlusB{};
+        let ci = AMultC{c: 5};
+
+        let ab = bincode::serialize(&ai);
+        let cb = bincode::serialize(&ci);
+
+        let a_de: APlusB = unsafe { reg_func_a.decode(&ab) };
+        let c_de: AMultC = unsafe { reg_func_c.decode(&cb) };
+
+        assert_eq!(ai, a_de);
+        assert_eq!(ci, c_de);
     }
 }
