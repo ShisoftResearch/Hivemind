@@ -20,8 +20,10 @@ use std::any::Any;
 pub struct RegistryRDDFunc {
     pub id: u64,
     pub func_ptr: *const (),
+    pub decoder_ptr: *const (),
 }
 
+// TODO: EXPLOSION PREVENTION
 impl RegistryRDDFunc {
     pub unsafe fn call<F, A, R>(&self, func_obj: &F, params: A) -> Result<R, String>
         where F: RDDFunc,
@@ -30,6 +32,12 @@ impl RegistryRDDFunc {
     {
         let func = transmute::<_, fn(&F, Box<Any>) -> RDDFuncResult>(self.func_ptr);
         func(func_obj, Box::new(params)).cast()
+    }
+    pub unsafe fn decode<F>(&self, data: &Vec<u8>) -> F
+        where F: RDDFunc
+    {
+        let func = transmute::<_, fn(&Vec<u8>) -> F>(self.decoder_ptr);
+        func(data)
     }
 }
 
@@ -43,10 +51,10 @@ impl Registry {
             map: RefCell::new(HashMap::new())
         }
     }
-    pub fn register(&self, id: u64, ptr: *const ()) -> Result<(), BorrowMutError> {
+    pub fn register(&self, id: u64, ptr: *const (), decoder: *const()) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
         m.insert(id, RegistryRDDFunc {
-            id, func_ptr: ptr
+            id, func_ptr: ptr, decoder_ptr: decoder
         });
         Ok(())
     }
@@ -89,12 +97,12 @@ impl RDDFuncResult {
     }
 }
 
-pub trait RDDFunc: Serialize {
+pub trait RDDFunc: Serialize + Sized {
     fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult;
     fn id() -> u64;
-    fn decode(bytes: &Vec<u8>) -> Self where Self: Sized;
+    fn decode(bytes: &Vec<u8>) -> Self;
     fn register() -> Result<(), BorrowMutError> {
-        REGISTRY.register(Self::id(), Self::call as *const ())
+        REGISTRY.register(Self::id(), Self::call as *const (), Self::decode as *const())
     }
 }
 
@@ -134,7 +142,7 @@ macro_rules! def_rdd_func {
                 fn id() -> u64 {
                     fn_id!($name)
                 }
-                fn decode(bytes: &Vec<u8>) -> Self where Self: Sized {
+                fn decode(bytes: &Vec<u8>) -> Self {
                     ::bifrost::utils::bincode::deserialize(bytes)
                 }
             }
