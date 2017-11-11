@@ -96,6 +96,16 @@ impl RDDFuncResult {
             }
         }
     }
+    pub fn unwrap_to_any(self) -> Box<Any> {
+        match self {
+            RDDFuncResult::Ok(data) => {
+                data
+            },
+            RDDFuncResult::Err(err) => {
+                panic!("cannot unwrap rdd func result: {}", err);
+            }
+        }
+    }
 }
 
 pub trait RDDFunc: Serialize + Sized {

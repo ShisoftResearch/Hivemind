@@ -8,6 +8,8 @@ pub mod funcs;
 pub mod script;
 pub mod transformers;
 
+pub type AnyIter = Box<Iterator<Item = Box<Any + 'static>> + 'static>;
+
 #[derive(
     Ord, PartialOrd, PartialEq, Eq, Hash,
     Copy, Clone,
@@ -33,10 +35,9 @@ pub struct Partition {
 pub trait RDD: Any {
     fn compute(
         &self,
-        iter: Box<Iterator<Item = Any>>,
+        iter: AnyIter,
         partition: &Partition,
-    ) -> Box<Iterator<Item = Any>>;
-    fn get_partitions(&self) -> &Vec<Partition>;
+    ) -> AnyIter;
     fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
     fn id(&self) -> RDDID;
 //    fn map(&self, func: Box<RDDFunc>) -> MapRDD {
