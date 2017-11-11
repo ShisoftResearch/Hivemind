@@ -106,50 +106,6 @@ pub trait RDDFunc: Serialize + Sized {
     }
 }
 
-macro_rules! count_args {
-    () => {0u64};
-    ($_head:tt $($tail:tt)*) => {1u64 + count_args!($($tail)*)};
-}
-
-macro_rules! fn_id {
-    ($expr: tt) => {
-        ::bifrost_hasher::hash_str(concat!(module_path!(), "::", stringify!($expr)))
-    };
-}
-
-macro_rules! def_rdd_func {
-    ($($name: ident($($farg:ident : $argt: ty),*)
-                   [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
-    {
-        $(
-            #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
-            pub struct $name {
-               $(pub $enclosed: $ety),*
-            }
-            impl RDDFunc for $name {
-                fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult {
-                    match args.downcast_ref::<( $($argt,)* )>() {
-                        Some(args) => {
-                            let &( $($farg,)* ) = args;
-                            let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
-                            return RDDFuncResult::Ok(Box::new($body as $rt));
-                        },
-                        None => {
-                            return RDDFuncResult::Err(format!("Cannot cast type: {:?}", args));
-                        }
-                    }
-                }
-                fn id() -> u64 {
-                    fn_id!($name)
-                }
-                fn decode(bytes: &Vec<u8>) -> Self {
-                    ::bifrost::utils::bincode::deserialize(bytes)
-                }
-            }
-        )*
-    };
-}
-
 mod test {
     use super::*;
     use parking_lot::Mutex;

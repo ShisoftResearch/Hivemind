@@ -1,11 +1,12 @@
 use self::funcs::RDDFunc;
-// use self::transformations::*;
 use super::contexts::TaskContext;
 use std::any::{Any, TypeId};
 use uuid::Uuid;
-
+#[macro_use]
+pub mod macros;
 pub mod funcs;
 pub mod script;
+pub mod transformers;
 
 #[derive(
     Ord, PartialOrd, PartialEq, Eq, Hash,
@@ -52,6 +53,9 @@ pub trait RDD: Any {
 //    }
 }
 
+pub trait RDDTracker {
+    fn trans_id() -> u64;
+}
 
 pub struct RDDC {
     raw_bytes: Option<Vec<u8>>

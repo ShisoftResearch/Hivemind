@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 use rdd::script::RDDScript;
-use rdd::{RDDID};
+use rdd::{RDDID, RDDTracker};
 use rdd::funcs::RDDFunc;
+use rdd::{transformers as trans};
 use bifrost::utils::bincode;
 
 // only for context transport
@@ -24,7 +25,7 @@ impl <'a> RDDPlaceholder <'a>  {
         let closure_data = bincode::serialize(&closure);
         self.ctx.dag.insert(rdd_id, RDDScript {
             func_id,
-            trans: 0,
+            trans: trans::map::Map::trans_id(),
             deps: vec![self.id],
             closure: closure_data,
         });
