@@ -164,9 +164,9 @@ mod test {
         let reg_func_b = REGISTRY.get(AMultB::id()).unwrap();
         let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
 
-        assert_eq!(unsafe { reg_func_a.call::<_, (u64, u64), u64>(APlusB{}, (1, 2)).unwrap()}, 3);
-        assert_eq!(unsafe { reg_func_b.call::<_, (u32, u32), u32>(AMultB{}, (2, 3)).unwrap()}, 6);
-        assert_eq!(unsafe { reg_func_c.call::<_, (u32,), u32>(AMultC{c: 5}, (2,)).unwrap()}, 10);
+        assert_eq!(reg_func_a.call::<_, (u64, u64), u64>(APlusB{}, (1, 2)).unwrap(), 3);
+        assert_eq!(reg_func_b.call::<_, (u32, u32), u32>(AMultB{}, (2, 3)).unwrap(), 6);
+        assert_eq!(reg_func_c.call::<_, (u32,), u32>(AMultC{c: 5}, (2,)).unwrap(), 10);
     }
     #[test]
     fn decode_from_register() {

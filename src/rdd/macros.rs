@@ -37,11 +37,11 @@ macro_rules! def_rdd_func {
                     -> RDDFuncResult
                 {
                     match closure.downcast_ref::<Self>() {
-                        Some(closure) => {
+                        Some(_closure) => {
                              match args.downcast_ref::<( $($argt,)* )>() {
                                 Some(args) => {
                                     let &( $($farg,)* ) = args;
-                                    let ( $($enclosed,)* ) = ( $(closure.$enclosed,)* );
+                                    let ( $($enclosed,)* ) = ( $(_closure.$enclosed,)* );
                                     return RDDFuncResult::Ok(Box::new($body as $rt));
                                 },
                                 None => {
