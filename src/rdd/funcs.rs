@@ -23,13 +23,13 @@ pub struct RegistryRDDFunc {
     pub decoder_ptr: *const (),
 }
 
-// TODO: EXPLOSION PREVENTION
 impl RegistryRDDFunc {
-    pub unsafe fn call<C, A, R>(&self, closure: C, params: A) -> Result<R, String>
+    pub fn call<C, A, R>(&self, closure: C, params: A) -> Result<R, String>
         where C: Any, R: Any + Clone, A: Any
     {
         (self.func)(box closure, box (params)).cast()
     }
+    // TODO: EXPLOSION PREVENTION
     pub unsafe fn decode<F>(&self, data: &Vec<u8>) -> F
         where F: RDDFunc
     {
