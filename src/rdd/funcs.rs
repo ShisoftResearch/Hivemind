@@ -19,7 +19,7 @@ use std::any::Any;
 #[derive(Clone, Copy)]
 pub struct RegistryRDDFunc {
     pub id: u64,
-    pub func_ptr: *const (),
+    pub func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
     pub decoder_ptr: *const (),
 }
 
@@ -28,9 +28,7 @@ impl RegistryRDDFunc {
     pub unsafe fn call<C, A, R>(&self, closure: C, params: A) -> Result<R, String>
         where C: Any, R: Any + Clone, A: Any
     {
-        let func =
-            transmute::<_, fn(Box<Any>, Box<Any>) -> RDDFuncResult>(self.func_ptr);
-        func(box closure, box (params)).cast()
+        (self.func)(box closure, box (params)).cast()
     }
     pub unsafe fn decode<F>(&self, data: &Vec<u8>) -> F
         where F: RDDFunc
@@ -50,10 +48,14 @@ impl Registry {
             map: RefCell::new(HashMap::new())
         }
     }
-    pub fn register(&self, id: u64, ptr: *const (), decoder: *const()) -> Result<(), BorrowMutError> {
+    pub fn register(
+        &self, id: u64,
+        func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
+        decoder: *const()
+    ) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
         m.insert(id, RegistryRDDFunc {
-            id, func_ptr: ptr, decoder_ptr: decoder
+            id, func, decoder_ptr: decoder
         });
         Ok(())
     }
@@ -101,7 +103,7 @@ pub trait RDDFunc: Serialize + Sized {
     fn id() -> u64;
     fn decode(bytes: &Vec<u8>) -> Self;
     fn register() -> Result<(), BorrowMutError> {
-        REGISTRY.register(Self::id(), Self::call as *const (), Self::decode as *const())
+        REGISTRY.register(Self::id(), Self::call, Self::decode as *const())
     }
 }
 
