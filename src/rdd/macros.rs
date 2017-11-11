@@ -33,15 +33,24 @@ macro_rules! def_rdd_func {
                $(pub $enclosed: $ety),*
             }
             impl RDDFunc for $name {
-                fn call(&self, args: Box<::std::any::Any>) -> RDDFuncResult {
-                    match args.downcast_ref::<( $($argt,)* )>() {
-                        Some(args) => {
-                            let &( $($farg,)* ) = args;
-                            let ( $($enclosed,)* ) = ( $(self.$enclosed,)* );
-                            return RDDFuncResult::Ok(Box::new($body as $rt));
+                fn call(closure: Box<::std::any::Any>, args: Box<::std::any::Any>)
+                    -> RDDFuncResult
+                {
+                    match closure.downcast_ref::<Self>() {
+                        Some(closure) => {
+                             match args.downcast_ref::<( $($argt,)* )>() {
+                                Some(args) => {
+                                    let &( $($farg,)* ) = args;
+                                    let ( $($enclosed,)* ) = ( $(closure.$enclosed,)* );
+                                    return RDDFuncResult::Ok(Box::new($body as $rt));
+                                },
+                                None => {
+                                    return RDDFuncResult::Err(format!("Cannot cast type: {:?}", args));
+                                }
+                            }
                         },
                         None => {
-                            return RDDFuncResult::Err(format!("Cannot cast type: {:?}", args));
+                          return RDDFuncResult::Err(format!("closure is not for the rdd function {:?}", closure));
                         }
                     }
                 }

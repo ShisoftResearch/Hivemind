@@ -1,5 +1,6 @@
 #![feature(plugin)]
 #![feature(concat_idents)]
+#![feature(box_syntax)]
 #![plugin(bifrost_plugins)]
 
 extern crate bifrost_hasher;
