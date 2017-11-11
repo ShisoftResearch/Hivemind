@@ -21,6 +21,7 @@ pub struct RegistryRDDFunc {
     pub id: u64,
     pub func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
     pub decoder_ptr: *const (),
+    pub clone: fn(&Box<Any>) -> Box<Any>,
 }
 
 impl RegistryRDDFunc {
@@ -51,12 +52,10 @@ impl Registry {
     pub fn register(
         &self, id: u64,
         func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
-        decoder: *const()
+        decoder_ptr: *const(), clone: fn(&Box<Any>) -> Box<Any>
     ) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
-        m.insert(id, RegistryRDDFunc {
-            id, func, decoder_ptr: decoder
-        });
+        m.insert(id, RegistryRDDFunc { id, func, decoder_ptr, clone });
         Ok(())
     }
     pub fn get<'a>(&self, id: u64) -> Option<RegistryRDDFunc> {
@@ -108,12 +107,18 @@ impl RDDFuncResult {
     }
 }
 
-pub trait RDDFunc: Serialize + Sized {
+pub trait RDDFunc: Serialize + Sized + Clone {
     fn call(closure: Box<Any>, args: Box<Any>) -> RDDFuncResult;
     fn id() -> u64;
     fn decode(bytes: &Vec<u8>) -> Self;
+    fn boxed_clone(closure: &Box<Any>) -> Box<Any>;
     fn register() -> Result<(), BorrowMutError> {
-        REGISTRY.register(Self::id(), Self::call, Self::decode as *const())
+        REGISTRY.register(
+            Self::id(),
+            Self::call,
+            Self::decode as *const(),
+            Self::boxed_clone,
+        )
     }
 }
 

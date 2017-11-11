@@ -28,7 +28,7 @@ macro_rules! def_rdd_func {
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
     {
         $(
-            #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+            #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
@@ -59,6 +59,16 @@ macro_rules! def_rdd_func {
                 }
                 fn decode(bytes: &Vec<u8>) -> Self {
                     ::bifrost::utils::bincode::deserialize(bytes)
+                }
+                fn boxed_clone(closure: &Box<Any>) -> Box<Any> {
+                    match closure.downcast_ref::<Self>() {
+                        Some(closure) => {
+                            box closure.clone()
+                        },
+                        None => {
+                            panic!(format!("closure is not for the rdd function {:?}", closure));
+                        }
+                    }
                 }
             }
         )*
