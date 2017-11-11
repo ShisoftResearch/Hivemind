@@ -13,9 +13,13 @@ bifrost_hasher = { git = "https://github.com/shisoft/bifrost", branch = "develop
 lazy_static = "*"
 uuid = { version = "0.5", features = ["v4"] }
 parking_lot = "0.4"
+typedef = "0.3"
 
 [lib]
 name = "hivemind"
 
 [[test]]
 name = "tests"
+
+[features]
+nightly = ["typedef/nightly"]
