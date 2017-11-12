@@ -3,6 +3,7 @@ use rdd::script::RDDScript;
 use rdd::{RDDID, RDDTracker};
 use rdd::funcs::RDDFunc;
 use rdd::{transformers as trans};
+use super::TaskContext;
 use bifrost::utils::bincode;
 
 // only for context transport
@@ -33,5 +34,15 @@ impl <'a> RDDPlaceholder <'a>  {
             id: rdd_id,
             ctx: self.ctx
         }
+    }
+}
+
+impl ContextScript {
+    pub fn compile(&self) -> TaskContext {
+        let mut runtime_context = TaskContext::new();
+        for (id, script) in &self.dag {
+            runtime_context.rdds.insert(*id, script.compile());
+        }
+        return runtime_context;
     }
 }

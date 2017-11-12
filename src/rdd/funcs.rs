@@ -1,5 +1,5 @@
 use std::cell::{RefCell, BorrowMutError};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::mem::transmute;
 use serde::{Serialize, Deserialize};
 use std::any::Any;
@@ -35,13 +35,13 @@ impl RegistryRDDFunc {
 }
 
 pub struct Registry {
-    map: RefCell<HashMap<u64, RegistryRDDFunc>>
+    map: RefCell<BTreeMap<u64, RegistryRDDFunc>>
 }
 
 impl Registry {
     pub fn new() -> Registry {
         Registry {
-            map: RefCell::new(HashMap::new())
+            map: RefCell::new(BTreeMap::new())
         }
     }
     pub fn register(
