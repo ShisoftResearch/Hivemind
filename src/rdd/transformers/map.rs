@@ -4,7 +4,7 @@ use std::any::Any;
 
 pub struct Map {
     closure: Box<Any>,
-    func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
+    func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
     clone: fn(&Box<Any>) -> Box<Any>,
     func_id: u64
 }
@@ -18,9 +18,10 @@ impl RDD for Map {
         partition: &Partition
     ) -> AnyIter {
         let func = (self.func);
-        let closure = (self.clone)(&self.closure);
+        let clone_closure = (self.clone);
+        let closure = clone_closure(&self.closure);
         let iter = iter.map(move |d: Box<Any>|
-            func(closure, d).unwrap_to_any());
+            func(&closure, d).unwrap_to_any());
         Box::new(iter)
     }
     fn get_dependencies(&self) -> &Vec<&Box<RDD>> {

@@ -19,16 +19,16 @@ use std::any::Any;
 #[derive(Clone, Copy)]
 pub struct RegistryRDDFunc {
     pub id: u64,
-    pub func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
+    pub func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
     pub decoder_ptr: *const (),
     pub clone: fn(&Box<Any>) -> Box<Any>,
 }
 
 impl RegistryRDDFunc {
-    pub fn call<C, A, R>(&self, closure: C, params: A) -> Result<R, String>
-        where C: Any, R: Any + Clone, A: Any
+    pub fn call<A, R>(&self, closure: &Box<Any>, params: A) -> Result<R, String>
+        where R: Any + Clone, A: Any
     {
-        (self.func)(box closure, box (params)).cast()
+        (self.func)(closure, box (params)).cast()
     }
     // TODO: EXPLOSION PREVENTION
     pub unsafe fn decode<F>(&self, data: &Vec<u8>) -> F
@@ -51,7 +51,7 @@ impl Registry {
     }
     pub fn register(
         &self, id: u64,
-        func: fn(Box<Any>, Box<Any>) -> RDDFuncResult,
+        func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
         decoder_ptr: *const(), clone: fn(&Box<Any>) -> Box<Any>
     ) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
@@ -107,11 +107,14 @@ impl RDDFuncResult {
     }
 }
 
-pub trait RDDFunc: Serialize + Sized + Clone {
-    fn call(closure: Box<Any>, args: Box<Any>) -> RDDFuncResult;
+pub trait RDDFunc: Serialize + Sized + Clone + 'static {
+    fn call(closure: &Box<Any>, args: Box<Any>) -> RDDFuncResult;
     fn id() -> u64;
     fn decode(bytes: &Vec<u8>) -> Self;
     fn boxed_clone(closure: &Box<Any>) -> Box<Any>;
+    fn into_any(self) -> Box<Any> {
+        Box::new(self)
+    }
     fn register() -> Result<(), BorrowMutError> {
         REGISTRY.register(
             Self::id(),
@@ -153,9 +156,9 @@ mod test {
     }
     #[test]
     fn test_a_b_rdd() {
-        assert_eq!(APlusB::call(box APlusB{}, box (1 as u64, 2 as u64)).cast::<u64>().unwrap(), 3);
-        assert_eq!(AMultB::call(box AMultB{}, box (2 as u32, 3 as u32)).cast::<u32>().unwrap(), 6);
-        assert_eq!(AMultC::call(box AMultC{c: 5}, box (2 as u32,)).cast::<u32>().unwrap(), 10);
+        assert_eq!(APlusB::call(&box APlusB{}.into_any(), box (1 as u64, 2 as u64)).cast::<u64>().unwrap(), 3);
+        assert_eq!(AMultB::call(&box AMultB{}.into_any(), box (2 as u32, 3 as u32)).cast::<u32>().unwrap(), 6);
+        assert_eq!(AMultC::call(&box AMultC{c: 5}.into_any(), box (2 as u32,)).cast::<u32>().unwrap(), 10);
     }
     #[test]
     fn register_and_invoke_from_registry_by_ptr() {
@@ -164,9 +167,9 @@ mod test {
         let reg_func_b = REGISTRY.get(AMultB::id()).unwrap();
         let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
 
-        assert_eq!(reg_func_a.call::<_, (u64, u64), u64>(APlusB{}, (1, 2)).unwrap(), 3);
-        assert_eq!(reg_func_b.call::<_, (u32, u32), u32>(AMultB{}, (2, 3)).unwrap(), 6);
-        assert_eq!(reg_func_c.call::<_, (u32,), u32>(AMultC{c: 5}, (2,)).unwrap(), 10);
+        assert_eq!(reg_func_a.call::<(u64, u64), u64>(&APlusB{}.into_any(), (1, 2)).unwrap(), 3);
+        assert_eq!(reg_func_b.call::<(u32, u32), u32>(&AMultB{}.into_any(), (2, 3)).unwrap(), 6);
+        assert_eq!(reg_func_c.call::<(u32,), u32>(&AMultC{c: 5}.into_any(), (2,)).unwrap(), 10);
     }
     #[test]
     fn decode_from_register() {
