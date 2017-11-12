@@ -25,11 +25,6 @@ pub struct RegistryRDDFunc {
 }
 
 impl RegistryRDDFunc {
-    pub fn call<A, R>(&self, closure: &Box<Any>, params: A) -> Result<R, String>
-        where R: Any + Clone, A: Any
-    {
-        (self.func)(closure, box (params)).cast()
-    }
     // TODO: EXPLOSION PREVENTION
     pub unsafe fn decode<F>(&self, data: &Vec<u8>) -> F
         where F: RDDFunc
@@ -154,6 +149,11 @@ mod test {
         AMultC::register().unwrap();
         *inited = true;
     }
+    fn reg_call<A, R>(regf: &RegistryRDDFunc, closure: &Box<Any>, params: A) -> Result<R, String>
+        where R: Any + Clone, A: Any
+    {
+        (regf.func)(closure, box (params)).cast()
+    }
     #[test]
     fn test_a_b_rdd() {
         assert_eq!(APlusB::call(&box APlusB{}.into_any(), box (1 as u64, 2 as u64)).cast::<u64>().unwrap(), 3);
@@ -167,9 +167,9 @@ mod test {
         let reg_func_b = REGISTRY.get(AMultB::id()).unwrap();
         let reg_func_c = REGISTRY.get(AMultC::id()).unwrap();
 
-        assert_eq!(reg_func_a.call::<(u64, u64), u64>(&APlusB{}.into_any(), (1, 2)).unwrap(), 3);
-        assert_eq!(reg_func_b.call::<(u32, u32), u32>(&AMultB{}.into_any(), (2, 3)).unwrap(), 6);
-        assert_eq!(reg_func_c.call::<(u32,), u32>(&AMultC{c: 5}.into_any(), (2,)).unwrap(), 10);
+        assert_eq!(reg_call::<(u64, u64), u64>(&reg_func_a, &APlusB{}.into_any(), (1, 2)).unwrap(), 3);
+        assert_eq!(reg_call::<(u32, u32), u32>(&reg_func_b, &AMultB{}.into_any(), (2, 3)).unwrap(), 6);
+        assert_eq!(reg_call::<(u32,), u32>(&reg_func_c, &AMultC{c: 5}.into_any(), (2,)).unwrap(), 10);
     }
     #[test]
     fn decode_from_register() {
