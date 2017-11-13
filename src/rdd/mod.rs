@@ -32,7 +32,7 @@ pub struct Partition {
     index: u32
 }
 
-pub trait RDD: Any {
+pub trait RDD {
     fn compute(
         &self,
         iter: AnyIter,
