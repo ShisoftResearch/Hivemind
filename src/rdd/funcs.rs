@@ -179,7 +179,7 @@ mod test {
         let a_de = a_de_any.downcast_ref::<APlusB>().unwrap();
         let c_de = c_de_any.downcast_ref::<AMultC>().unwrap();
 
-//        assert_eq!(ai, a_de_any);
-//        assert_eq!(ci, c_de_any);
+        assert_eq!(&ai, a_de);
+        assert_eq!(&ci, c_de);
     }
 }
