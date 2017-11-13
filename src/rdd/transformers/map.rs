@@ -1,5 +1,6 @@
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
+use rdd::transformers::{Registry, REGISTRY, RegistryTransformer};
 use std::any::Any;
 
 pub struct Map {
@@ -8,7 +9,7 @@ pub struct Map {
     clone: fn(&Box<Any>) -> Box<Any>,
 }
 
-impl_rdd_tracker!{
+impl_rdd_trans_tracker!{
     Map (func_id: u64, closure_data: Vec<u8>) {
         let reg_func = FuncREG.get(*func_id).ok_or("cannot find rdd function")?;
         let closure = (reg_func.decode)(closure_data);

@@ -1,20 +1,26 @@
 #[macro_export]
-macro_rules! impl_rdd_tracker {
+macro_rules! impl_rdd_trans_tracker {
     ($name: ident ($($carg:ident : $cargt: ty),*) $constructor:block) => {
         impl RDDTracker for $name {
             fn trans_id() -> u64 {
                 ident_id!($name)
             }
-            fn new(args: Box<Any>) -> Result<Self, String> {
+            fn new(args: Box<Any>) -> Result<Box<Any>, String> {
                 match args.downcast_ref::<( $($cargt,)* )>() {
                     Some(args) => {
                         let &( $(ref $carg,)* ) = args;
-                        return $constructor
+                        $constructor
+                            .map(|rdd| -> Box<Any> { box rdd })
                     },
                     None => {
                         return Err(format!("Cannot cast type to create rdd: {:?}", args));
                     }
                 }
+            }
+            fn register() {
+                REGISTRY.register(
+                    Self::trans_id(), Self::new
+                );
             }
         }
     };

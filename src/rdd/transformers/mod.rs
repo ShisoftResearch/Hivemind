@@ -1,16 +1,19 @@
 use std::collections::BTreeMap;
 use std::cell::RefCell;
+use std::any::Any;
 
 pub mod map;
 
 pub struct RegistryTransformer {
-
+    constructor: fn (Box<Any>) -> Result<Box<Any>, String>
 }
 
 impl RegistryTransformer {
-    pub fn new() -> RegistryTransformer {
+    pub fn new(
+        constructor: fn (Box<Any>) -> Result<Box<Any>, String>
+    ) -> RegistryTransformer {
         RegistryTransformer {
-
+            constructor
         }
     }
 }
@@ -24,6 +27,16 @@ impl Registry {
         Registry {
             map: RefCell::new(BTreeMap::new()),
         }
+    }
+    pub fn register(
+        &self,
+        id: u64,
+        constructor: fn (Box<Any>) -> Result<Box<Any>, String>
+    ) {
+        let mut reg = self.map.borrow_mut();
+        reg.insert(id, RegistryTransformer::new(
+            constructor
+        ));
     }
 }
 
