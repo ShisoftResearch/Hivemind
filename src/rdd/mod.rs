@@ -54,8 +54,9 @@ pub trait RDD: Any {
 //    }
 }
 
-pub trait RDDTracker {
+pub trait RDDTracker: Sized {
     fn trans_id() -> u64;
+    fn new(params: Box<Any>) -> Result<Self, String>;
 }
 
 pub struct RDDC {

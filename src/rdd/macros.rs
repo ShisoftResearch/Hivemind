@@ -1,9 +1,20 @@
 #[macro_export]
 macro_rules! impl_rdd_tracker {
-    ($name: ident) => {
+    ($name: ident ($($carg:ident : $cargt: ty),*) $constructor:block) => {
         impl RDDTracker for $name {
             fn trans_id() -> u64 {
                 ident_id!($name)
+            }
+            fn new(params: Box<Any>) -> Result<Self, String> {
+                match args.downcast_ref::<( $($cargt,)* )>() {
+                    Some(args) => {
+                        let &( $($carg,)* ) = args;
+                        return $constructor
+                    },
+                    None => {
+                        return Err(format!("Cannot cast type to create rdd: {:?}", args));
+                    }
+                }
             }
         }
     };

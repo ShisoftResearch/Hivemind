@@ -6,10 +6,13 @@ pub struct Map {
     closure: Box<Any>,
     func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
     clone: fn(&Box<Any>) -> Box<Any>,
-    func_id: u64
 }
 
-impl_rdd_tracker!(Map);
+impl_rdd_tracker!{
+    Map (func_id: u64, closure_data: Vec<u8>) {
+        
+    }
+}
 
 impl RDD for Map {
     fn compute (
