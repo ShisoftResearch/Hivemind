@@ -5,21 +5,25 @@ macro_rules! impl_rdd_trans_tracker {
             fn trans_id() -> u64 {
                 ident_id!($name)
             }
-            fn new(args: Box<Any>) -> Result<Box<Any>, String> {
+            fn new(args: Box<Any>) -> Result<Box<RDD>, String> {
                 match args.downcast_ref::<( $($cargt,)* )>() {
                     Some(args) => {
                         let &( $(ref $carg,)* ) = args;
                         $constructor
-                            .map(|rdd| -> Box<Any> { box rdd })
+                            .map(|rdd| -> Box<RDD> { box rdd })
                     },
                     None => {
                         return Err(format!("Cannot cast type to create rdd: {:?}", args));
                     }
                 }
             }
+            fn construct_arg (data: &Vec<u8>) -> Box<Any> {
+                let args:( $($cargt,)* ) = ::bifrost::utils::bincode::deserialize(data);
+                return box args
+            }
             fn register() {
                 REGISTRY.register(
-                    Self::trans_id(), Self::new
+                    Self::trans_id(), Self::new, Self::construct_arg
                 );
             }
         }

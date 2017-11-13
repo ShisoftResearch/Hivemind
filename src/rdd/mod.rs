@@ -56,7 +56,8 @@ pub trait RDD: Any {
 
 pub trait RDDTracker: RDD + Sized {
     fn trans_id() -> u64;
-    fn new(params: Box<Any>) -> Result<Box<Any>, String>;
+    fn new(params: Box<Any>) -> Result<Box<RDD>, String>;
+    fn construct_arg (data: &Vec<u8>) -> Box<Any>;
     fn register();
 }
 

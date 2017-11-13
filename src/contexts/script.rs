@@ -25,10 +25,9 @@ impl <'a> RDDPlaceholder <'a>  {
         let func_id = F::id();
         let closure_data = bincode::serialize(&closure);
         self.ctx.dag.insert(rdd_id, RDDScript {
-            func_id,
-            trans: trans::map::Map::trans_id(),
+            trans_id: trans::map::Map::trans_id(),
+            trans_data: bincode::serialize(&(func_id, closure_data)),
             deps: vec![self.id],
-            closure: closure_data,
         });
         RDDPlaceholder {
             id: rdd_id,
@@ -38,11 +37,12 @@ impl <'a> RDDPlaceholder <'a>  {
 }
 
 impl ContextScript {
-    pub fn compile(&self) -> TaskContext {
+    pub fn compile(&self) -> Result<TaskContext, String> {
         let mut runtime_context = TaskContext::new();
         for (id, script) in &self.dag {
-            runtime_context.rdds.insert(*id, script.compile());
+            let compiled_scr = script.compile()?;
+            runtime_context.rdds.insert(*id, compiled_scr);
         }
-        return runtime_context;
+        return Ok(runtime_context);
     }
 }

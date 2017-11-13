@@ -1,25 +1,19 @@
 use std::collections::BTreeMap;
 use std::cell::RefCell;
 use std::any::Any;
+use rdd::RDD;
 
 pub mod map;
 
-pub struct RegistryTransformer {
-    constructor: fn (Box<Any>) -> Result<Box<Any>, String>
+#[derive(Clone)]
+pub struct RegedTrans {
+    pub construct: fn (Box<Any>) -> Result<Box<RDD>, String>,
+    pub construct_args: fn (&Vec<u8>) -> Box<Any>
 }
 
-impl RegistryTransformer {
-    pub fn new(
-        constructor: fn (Box<Any>) -> Result<Box<Any>, String>
-    ) -> RegistryTransformer {
-        RegistryTransformer {
-            constructor
-        }
-    }
-}
 
 pub struct Registry {
-    map: RefCell<BTreeMap<u64, RegistryTransformer>>
+    map: RefCell<BTreeMap<u64, RegedTrans>>
 }
 
 impl Registry {
@@ -31,12 +25,17 @@ impl Registry {
     pub fn register(
         &self,
         id: u64,
-        constructor: fn (Box<Any>) -> Result<Box<Any>, String>
+        construct: fn (Box<Any>) -> Result<Box<RDD>, String>,
+        construct_args: fn (&Vec<u8>) -> Box<Any>
     ) {
         let mut reg = self.map.borrow_mut();
-        reg.insert(id, RegistryTransformer::new(
-            constructor
-        ));
+        reg.insert(id, RegedTrans {
+            construct, construct_args
+        });
+    }
+    pub fn get(&self, id: u64) -> Option<RegedTrans> {
+        let borrowed = self.map.borrow();
+        borrowed.get(&id).cloned()
     }
 }
 

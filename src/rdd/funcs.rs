@@ -43,7 +43,7 @@ impl Registry {
         m.insert(id, RegistryRDDFunc { id, func, decode, clone });
         Ok(())
     }
-    pub fn get<'a>(&self, id: u64) -> Option<RegistryRDDFunc> {
+    pub fn get(&self, id: u64) -> Option<RegistryRDDFunc> {
         let m = self.map.borrow();
         m.get(&id).cloned()
     }

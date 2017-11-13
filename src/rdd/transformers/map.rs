@@ -1,6 +1,6 @@
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
-use rdd::transformers::{Registry, REGISTRY, RegistryTransformer};
+use rdd::transformers::{Registry, REGISTRY, RegedTrans};
 use std::any::Any;
 
 pub struct Map {
