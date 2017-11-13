@@ -1,5 +1,5 @@
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
-use rdd::funcs::{RDDFunc, RDDFuncResult};
+use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
 use std::any::Any;
 
 pub struct Map {
@@ -10,7 +10,9 @@ pub struct Map {
 
 impl_rdd_tracker!{
     Map (func_id: u64, closure_data: Vec<u8>) {
-        
+        let reg_func = FuncREG.get(*func_id);
+        // let closure = unsafe { reg_func.decode }
+        unimplemented!()
     }
 }
 

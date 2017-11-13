@@ -5,10 +5,10 @@ macro_rules! impl_rdd_tracker {
             fn trans_id() -> u64 {
                 ident_id!($name)
             }
-            fn new(params: Box<Any>) -> Result<Self, String> {
+            fn new(args: Box<Any>) -> Result<Self, String> {
                 match args.downcast_ref::<( $($cargt,)* )>() {
                     Some(args) => {
-                        let &( $($carg,)* ) = args;
+                        let &( $(ref $carg,)* ) = args;
                         return $constructor
                     },
                     None => {
@@ -51,8 +51,8 @@ macro_rules! def_rdd_func {
                         Some(_closure) => {
                              match args.downcast_ref::<( $($argt,)* )>() {
                                 Some(args) => {
-                                    let &( $($farg,)* ) = args;
-                                    let ( $($enclosed,)* ) = ( $(_closure.$enclosed,)* );
+                                    let &( $(ref $farg,)* ) = args;
+                                    let ( $(ref $enclosed,)* ) = ( $(_closure.$enclosed,)* );
                                     return RDDFuncResult::Ok(Box::new($body as $rt));
                                 },
                                 None => {
@@ -68,8 +68,9 @@ macro_rules! def_rdd_func {
                 fn id() -> u64 {
                     ident_id!($name)
                 }
-                fn decode(bytes: &Vec<u8>) -> Self {
-                    ::bifrost::utils::bincode::deserialize(bytes)
+                fn decode(bytes: &Vec<u8>) -> Box<Any>{
+                    let closure: Self = ::bifrost::utils::bincode::deserialize(bytes);
+                    Box::new(closure)
                 }
                 fn boxed_clone(closure: &Box<Any>) -> Box<Any> {
                     match closure.downcast_ref::<Self>() {
