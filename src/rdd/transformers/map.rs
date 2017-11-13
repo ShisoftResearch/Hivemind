@@ -10,9 +10,11 @@ pub struct Map {
 
 impl_rdd_tracker!{
     Map (func_id: u64, closure_data: Vec<u8>) {
-        let reg_func = FuncREG.get(*func_id);
-        // let closure = unsafe { reg_func.decode }
-        unimplemented!()
+        let reg_func = FuncREG.get(*func_id).ok_or("cannot find rdd function")?;
+        let closure = unsafe { reg_func.decode(closure_data) };
+        let func = reg_func.func;
+        let clone = reg_func.clone;
+        Ok(Map{  closure, func, clone })
     }
 }
 
