@@ -20,17 +20,8 @@ use std::any::Any;
 pub struct RegistryRDDFunc {
     pub id: u64,
     pub func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
-    pub decoder_ptr: *const (),
+    pub decode: fn(&Vec<u8>) -> Box<Any>,
     pub clone: fn(&Box<Any>) -> Box<Any>,
-}
-
-impl RegistryRDDFunc {
-    // TODO: EXPLOSION PREVENTION
-    pub unsafe fn decode(&self, data: &Vec<u8>) -> Box<Any>
-    {
-        let func = transmute::<_, fn(&Vec<u8>) -> Box<Any>>(self.decoder_ptr);
-        func(data)
-    }
 }
 
 pub struct Registry {
@@ -46,10 +37,10 @@ impl Registry {
     pub fn register(
         &self, id: u64,
         func: fn(&Box<Any>, Box<Any>) -> RDDFuncResult,
-        decoder_ptr: *const(), clone: fn(&Box<Any>) -> Box<Any>
+        decode: fn(&Vec<u8>) -> Box<Any>, clone: fn(&Box<Any>) -> Box<Any>
     ) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
-        m.insert(id, RegistryRDDFunc { id, func, decoder_ptr, clone });
+        m.insert(id, RegistryRDDFunc { id, func, decode, clone });
         Ok(())
     }
     pub fn get<'a>(&self, id: u64) -> Option<RegistryRDDFunc> {
@@ -113,7 +104,7 @@ pub trait RDDFunc: Serialize + Sized + Clone + 'static {
         REGISTRY.register(
             Self::id(),
             Self::call,
-            Self::decode as *const(),
+            Self::decode,
             Self::boxed_clone,
         )
     }
@@ -182,8 +173,8 @@ mod test {
         let ab = bincode::serialize(&ai);
         let cb = bincode::serialize(&ci);
 
-        let a_de_any = unsafe { reg_func_a.decode(&ab) };
-        let c_de_any = unsafe { reg_func_c.decode(&cb) };
+        let a_de_any = (reg_func_a.decode)(&ab);
+        let c_de_any = (reg_func_c.decode)(&cb);
 
         let a_de = a_de_any.downcast_ref::<APlusB>().unwrap();
         let c_de = c_de_any.downcast_ref::<AMultC>().unwrap();
