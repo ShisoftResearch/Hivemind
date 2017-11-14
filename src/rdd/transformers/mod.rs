@@ -4,6 +4,7 @@ use std::any::Any;
 use rdd::RDD;
 
 pub mod map;
+pub mod filter;
 
 #[derive(Clone)]
 pub struct RegedTrans {

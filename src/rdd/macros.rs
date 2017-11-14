@@ -54,7 +54,7 @@ macro_rules! def_rdd_func {
                $(pub $enclosed: $ety),*
             }
             impl RDDFunc for $name {
-                fn call(closure: &Box<::std::any::Any>, args: Box<::std::any::Any>)
+                fn call(closure: &Box<::std::any::Any>, args: &Box<::std::any::Any>)
                     -> RDDFuncResult
                 {
                     match closure.downcast_ref::<Self>() {
