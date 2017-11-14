@@ -21,14 +21,14 @@ impl <'a> RDDPlaceholder <'a>  {
     pub fn map<F>(&mut self, closure: F) -> RDDPlaceholder
         where F: RDDFunc
     {
-        self.new(closure, trans::map::Map::trans_id())
+        self.transform(closure, trans::map::Map::trans_id())
     }
     pub fn filter<F>(&mut self, closure: F) -> RDDPlaceholder
         where F: RDDFunc
     {
-        self.new(closure, trans::filter::Filter::trans_id())
+        self.transform(closure, trans::filter::Filter::trans_id())
     }
-    fn new<F>(&mut self, closure: F, trans_id: u64) -> RDDPlaceholder
+    fn transform<F>(&mut self, closure: F, trans_id: u64) -> RDDPlaceholder
         where F: RDDFunc
     {
         let rdd_id = RDDID::rand();
