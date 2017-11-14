@@ -14,5 +14,6 @@ extern crate uuid;
 extern crate parking_lot;
 extern crate typedef;
 
+#[macro_use]
 mod rdd;
 mod contexts;

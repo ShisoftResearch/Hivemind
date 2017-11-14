@@ -16,6 +16,7 @@ trait Composer {
 
 pub trait Script {
     fn new_context() -> Self;
+    fn compile(&self) -> Result<TaskContext, String>;
 }
 
 pub type ContextScript = Rc<RefCell<InnerContextScript>>;
@@ -110,16 +111,37 @@ impl Script for ContextScript {
     fn new_context() -> ContextScript {
         InnerContextScript::new()
     }
+    fn compile(&self) -> Result<TaskContext, String> {
+        let inner = self.borrow();
+        return inner.compile()
+    }
 }
 
 mod test {
     use super::*;
+    use rdd::funcs::RDDFuncResult;
+    use rdd::transformers;
+    use rdd::RDDTracker;
 
-
+    def_rdd_func!(
+        APlusB (a: u64)[b: u64] -> u64 {
+            a + b
+        }
+        AGreaterThanN(x: u64)[n: u64] -> bool {
+            x > n
+        }
+    );
 
     #[test]
-    fn build_placeholder() {
-        let ctx = ContextScript::new_context();
-        // let mut ctx = ContextScript::new();
+    fn composer() {
+        transformers::map::Map::register();
+        transformers::filter::Filter::register();
+        APlusB::register().unwrap();
+        AGreaterThanN::register().unwrap();
+        let context = ContextScript::new_context();
+        context
+            .map(APlusB{b: 10})
+            .filter(AGreaterThanN{ n: 5 });
+        context.compile().unwrap();
     }
 }
