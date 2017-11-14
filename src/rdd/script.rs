@@ -4,6 +4,7 @@ use rdd::transformers::REGISTRY;
 // only for RDD transport
 #[derive(Serialize, Deserialize)]
 pub struct RDDScript {
+    pub rdd_id: RDDID,
     pub trans_id: u64,
     pub trans_data: Vec<u8>,
     pub deps: Vec<RDDID>,

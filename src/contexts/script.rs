@@ -9,7 +9,7 @@ use bifrost::utils::bincode;
 // only for context transport
 #[derive(Serialize, Deserialize)]
 pub struct ContextScript {
-    pub dag: BTreeMap<RDDID, RDDScript>
+    dag: BTreeMap<RDDID, RDDScript>
 }
 
 pub struct RDDPlaceholder <'a> {
@@ -35,6 +35,7 @@ impl <'a> RDDPlaceholder <'a>  {
         let func_id = F::id();
         let closure_data = bincode::serialize(&closure);
         self.ctx.dag.insert(rdd_id, RDDScript {
+            rdd_id,
             trans_id,
             trans_data: bincode::serialize(&(func_id, closure_data)),
             deps: vec![self.id],
@@ -47,6 +48,11 @@ impl <'a> RDDPlaceholder <'a>  {
 }
 
 impl ContextScript {
+    pub fn new() -> ContextScript {
+        ContextScript {
+            dag: BTreeMap::new()
+        }
+    }
     pub fn compile(&self) -> Result<TaskContext, String> {
         let mut runtime_context = TaskContext::new();
         for (id, script) in &self.dag {
@@ -54,5 +60,15 @@ impl ContextScript {
             runtime_context.rdds.insert(*id, compiled_scr);
         }
         return Ok(runtime_context);
+    }
+}
+
+mod test {
+    use super::ContextScript;
+
+    #[test]
+    fn build_placeholder() {
+        // let mut ctx = ContextScript::new();
+
     }
 }
