@@ -18,14 +18,24 @@ pub struct RDDPlaceholder <'a> {
 }
 
 impl <'a> RDDPlaceholder <'a>  {
-    pub fn map <F> (&mut self, closure: F) -> RDDPlaceholder
+    pub fn map<F>(&mut self, closure: F) -> RDDPlaceholder
+        where F: RDDFunc
+    {
+        self.new(closure, trans::map::Map::trans_id())
+    }
+    pub fn filter<F>(&mut self, closure: F) -> RDDPlaceholder
+        where F: RDDFunc
+    {
+        self.new(closure, trans::filter::Filter::trans_id())
+    }
+    fn new<F>(&mut self, closure: F, trans_id: u64) -> RDDPlaceholder
         where F: RDDFunc
     {
         let rdd_id = RDDID::rand();
         let func_id = F::id();
         let closure_data = bincode::serialize(&closure);
         self.ctx.dag.insert(rdd_id, RDDScript {
-            trans_id: trans::map::Map::trans_id(),
+            trans_id,
             trans_data: bincode::serialize(&(func_id, closure_data)),
             deps: vec![self.id],
         });

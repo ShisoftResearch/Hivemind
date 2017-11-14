@@ -40,18 +40,6 @@ pub trait RDD {
     ) -> AnyIter;
     fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
     fn id(&self) -> RDDID;
-//    fn map(&self, func: Box<RDDFunc>) -> MapRDD {
-//        MapRDD::new(func)
-//    }
-//    fn filter(&self, func: Box<RDDFunc>) -> FilterRDD {
-//        FilterRDD::new(func)
-//    }
-//    fn flat_map<F>(&self, func: F) -> FlatMapRDD<F, I, O> where F: RDDFunc<I, O> {
-//        unimplemented!()
-//    }
-//    fn map_partitions<F>(&self, func: F) -> MapPartitionsRDD<F, I, O> where F: RDDFunc<I, O> {
-//        unimplemented!()
-//    }
 }
 
 pub trait RDDTracker: RDD + Sized {
