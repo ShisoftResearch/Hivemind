@@ -19,6 +19,8 @@ pub struct RDDID {
     bytes: [u8; 16],
 }
 
+pub static UNIT_RDDID: RDDID = RDDID { bytes: [0u8; 16] };
+
 impl RDDID {
     pub fn rand() -> RDDID {
         let uuid = Uuid::new_v4();
