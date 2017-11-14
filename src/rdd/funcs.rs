@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::mem::transmute;
 use serde::{Serialize, Deserialize};
 use std::any::Any;
+pub use INIT_LOCK;
 
 // RDD functions will compiled at application compile time. The only way to get the the function at
 // runtime by ids is to register it's runtime pointer in the registry.
@@ -118,7 +119,6 @@ pub fn to_any<T>(x: T) -> Box<Any>
 
 mod test {
     use super::*;
-    use parking_lot::Mutex;
     use bifrost::utils::bincode;
 
     def_rdd_func!(
@@ -132,18 +132,11 @@ mod test {
             a * c
         }
     );
-    lazy_static!{
-        pub static ref INIT_LOCK: Mutex<bool> = Mutex::new(false);
-    }
     fn prepare_registry() {
-        let mut inited = INIT_LOCK.lock();
-        if *inited {
-            return;
-        }
+        let lock = INIT_LOCK.lock();
         APlusB::register().unwrap();
         AMultB::register().unwrap();
         AMultC::register().unwrap();
-        *inited = true;
     }
     fn reg_call<A, R>(regf: &RegistryRDDFunc, closure: &Box<Any>, params: A) -> Result<R, String>
         where R: Any + Clone, A: Any

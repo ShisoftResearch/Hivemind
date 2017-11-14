@@ -17,3 +17,9 @@ extern crate typedef;
 #[macro_use]
 mod rdd;
 mod contexts;
+
+use parking_lot::Mutex;
+
+lazy_static!{
+        pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
+}

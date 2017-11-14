@@ -118,6 +118,7 @@ impl Script for ContextScript {
 }
 
 mod test {
+    use INIT_LOCK;
     use super::*;
     use rdd::funcs::RDDFuncResult;
     use rdd::transformers;
@@ -134,6 +135,7 @@ mod test {
 
     #[test]
     fn composer() {
+        let lock = INIT_LOCK.lock();
         transformers::map::Map::register();
         transformers::filter::Filter::register();
         APlusB::register().unwrap();
