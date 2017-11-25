@@ -18,9 +18,9 @@ extern crate futures_cpupool;
 
 
 #[macro_use]
-mod rdd;
-mod contexts;
-mod server;
+pub mod rdd;
+pub mod contexts;
+pub mod server;
 
 use parking_lot::Mutex;
 
