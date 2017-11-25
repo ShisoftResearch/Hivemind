@@ -6,7 +6,10 @@
 #[macro_use]
 extern crate log;
 extern crate bifrost_hasher;
+#[macro_use]
 extern crate bifrost;
+#[macro_use]
+extern crate neb;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
