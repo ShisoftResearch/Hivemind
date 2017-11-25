@@ -13,10 +13,14 @@ extern crate lazy_static;
 extern crate uuid;
 extern crate parking_lot;
 extern crate typedef;
+extern crate futures;
+extern crate futures_cpupool;
+
 
 #[macro_use]
 mod rdd;
 mod contexts;
+mod server;
 
 use parking_lot::Mutex;
 
