@@ -40,8 +40,6 @@ impl HMServer {
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
     ) -> Result<Arc<HMServer>, ServerError> {
-        let mut opts = opts.clone();
-        opts.group_name = format!("hm_{}", opts.group_name);
         let conshash = HMServer::load_cluster_clients(&opts, &rpc)?;
         Ok(Arc::new(
             HMServer {
