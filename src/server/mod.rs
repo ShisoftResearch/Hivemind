@@ -7,6 +7,8 @@ use bifrost::membership::server::Membership;
 use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 
+mod resources;
+
 #[derive(Debug)]
 pub enum ServerError {
     CannotJoinCluster,
@@ -30,7 +32,6 @@ pub struct ServerOptions {
 
 pub struct HMServer {
     pub rpc: Arc<rpc::Server>,
-    pub consh: Arc<ConsistentHashing>,
     pub member_pool: rpc::ClientPool,
     pub server_id: u64
 }
@@ -40,11 +41,10 @@ impl HMServer {
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
     ) -> Result<Arc<HMServer>, ServerError> {
-        let conshash = HMServer::load_cluster_clients(&opts, &rpc)?;
+        HMServer::load_cluster_clients(&opts, &rpc)?;
         Ok(Arc::new(
             HMServer {
                 rpc: rpc.clone(),
-                consh: conshash,
                 member_pool: rpc::ClientPool::new(),
                 server_id: rpc.server_id
             }
@@ -61,36 +61,17 @@ impl HMServer {
             }
         }
     }
-
-    fn init_conshash(opt: &ServerOptions, raft_client: &Arc<RaftClient>)
-                     -> Result<Arc<ConsistentHashing>, ServerError> {
-        match ConsistentHashing::new(&opt.group_name, raft_client) {
-            Ok(ch) => {
-                ch.set_weight(&opt.address, opt.processors as u64);
-                if !ch.init_table().is_ok() {
-                    error!("Cannot initialize member table");
-                    return Err(ServerError::CannotInitMemberTable);
-                }
-                return Ok(ch);
-            },
-            _ => {
-                error!("Cannot initialize consistent hash table");
-                return Err(ServerError::CannotInitConsistentHashTable);
-            }
-        }
-    }
     fn load_cluster_clients (
         opt: &ServerOptions,
         rpc_server: &Arc<rpc::Server>
-    ) -> Result<Arc<ConsistentHashing>, ServerError> {
+    ) -> Result<(), ServerError> {
         let raft_client =
             RaftClient::new(&opt.meta_members, raft::DEFAULT_SERVICE_ID);
         match raft_client {
             Ok(raft_client) => {
                 RaftClient::prepare_subscription(rpc_server);
                 Self::join_group(opt, &raft_client)?;
-                let conshash = Self::init_conshash(opt, &raft_client)?;
-                Ok(conshash)
+                Ok(())
             },
             Err(e) => {
                 error!("Cannot load meta client: {:?}", e);
