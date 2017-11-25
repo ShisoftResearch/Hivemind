@@ -13,9 +13,16 @@ raft_state_machine! {
 
     def cmd degegister_node(node_id: u64);
     def cmd task_ended(task_id: u64, status: TaskStatus);
+    def cmd occupation_ended(
+        task_id: u64,
+        stage_id: u64,
+        node_id: u64
+    ); // this will trigger on_scheduled_occupied
 
     def qry tasks() -> Vec<Task>;
     def qry nodes() -> Vec<ComputeNode>;
+
+    def sub on_scheduled_occupied() -> Vec<Occupation>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -58,6 +65,7 @@ pub enum TaskStatus {
 pub enum OccupationStatus {
     Occupied, // resource is ready for use
     Scheduled, // queued
+    Released,
     NotReliable,
     None,
 }
