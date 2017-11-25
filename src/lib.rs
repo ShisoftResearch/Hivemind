@@ -3,6 +3,8 @@
 #![feature(box_syntax)]
 #![plugin(bifrost_plugins)]
 
+#[macro_use]
+extern crate log;
 extern crate bifrost_hasher;
 extern crate bifrost;
 extern crate serde;
