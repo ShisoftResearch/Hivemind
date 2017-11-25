@@ -6,14 +6,13 @@ use parking_lot::Mutex;
 
 raft_state_machine! {
     def cmd register_node(node: ComputeNode);
-    def cmd register_task(task: Task);
+    def cmd register_task(
+        task: Task,
+        occupations: Vec<Occupation>
+    ) -> Vec<Occupation>;
 
     def cmd degegister_node(node_id: u64);
     def cmd task_ended(task_id: u64, status: TaskStatus);
-
-    def cmd acquire(
-        occupations: Vec<Occupation>
-    ) -> Result<Vec<Occupation>, String>;
 
     def qry tasks() -> Vec<Task>;
     def qry nodes() -> Vec<ComputeNode>;
@@ -26,6 +25,7 @@ pub struct Occupation {
     pub workers: u32,
     pub memory: u64,
     pub node_id: u64,
+    pub status: OccupationStatus,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -53,6 +53,15 @@ pub enum TaskStatus {
     Failed,
     Canceled
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum OccupationStatus {
+    Occupied, // resource is ready for use
+    Scheduled, // queued
+    NotReliable,
+    None,
+}
+
 
 pub struct ResourceManager {
     compute_nodes: Mutex<BTreeMap<u64, ComputeNode>>,
