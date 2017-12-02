@@ -33,7 +33,7 @@ raft_state_machine! {
     def qry tasks() -> Vec<Task>;
     def qry nodes() -> Vec<ComputeNode>;
 
-    def sub on_scheduled_occupied() -> Vec<Occupation>;
+    def sub on_member_changed() -> ComputeNode;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -85,13 +85,15 @@ pub enum OccupationStatus {
 pub struct ResourceManager {
     compute_nodes: Arc<RwLock<BTreeMap<u64, ComputeNode>>>,
     tasks: BTreeMap<u64, Task>,
-    callback: SMCallback,
+    callback: Arc<CallbackTrigger>,
     sm_id: u64
 }
 
 impl StateMachineCmds for ResourceManager {
     fn register_node(&mut self, node: ComputeNode) -> Result<(), String> {
-        unimplemented!()
+        let mut nodes = self.compute_nodes.write();
+        nodes.insert(node.node_id, node);
+        return Ok(())
     }
     fn register_task(&mut self, task: Task, occupations: Vec<Occupation>)
         -> Result<Vec<Occupation>, String>
@@ -99,10 +101,17 @@ impl StateMachineCmds for ResourceManager {
         unimplemented!()
     }
     fn degegister_node(&mut self, node_id: u64) -> Result<(), String> {
-        unimplemented!()
+        let mut nodes = self.compute_nodes.write();
+        nodes.remove(&node_id);
+        return Ok(());
     }
     fn task_ended(&mut self, task_id: u64, status: TaskStatus) -> Result<(), String> {
-        unimplemented!()
+        if let Some(mut task) = self.tasks.get_mut(&task_id) {
+            task.status = status;
+            Ok(())
+        } else {
+            Err(format!("Cannot find task with id {}", task_id))
+        }
     }
     fn occupation_ended(
         &mut self,
@@ -123,7 +132,7 @@ impl StateMachineCmds for ResourceManager {
 impl StateMachineCtl for ResourceManager {
     raft_sm_complete!();
     fn id(&self) -> u64 {
-        return self.id();
+        return self.sm_id;
     }
     fn snapshot(&self) -> Option<Vec<u8>> {
         let nodes = self.compute_nodes.read();
@@ -139,35 +148,42 @@ impl StateMachineCtl for ResourceManager {
 impl ResourceManager {
     pub fn new(raft: Arc<RaftService>, group_id: u64, membership_cb: &SMCallback) -> ResourceManager {
         let nodes = Arc::new(RwLock::new(BTreeMap::<u64, ComputeNode>::new()));
+        let callback = Arc::new(CallbackTrigger {
+            sm_callback: SMCallback::new(DEFAULT_SERVICE_ID, raft)
+        });
         let manager = ResourceManager{
             compute_nodes: nodes.clone(),
             tasks: BTreeMap::new(),
-            callback: SMCallback::new(DEFAULT_SERVICE_ID, raft),
-            sm_id: DEFAULT_SERVICE_ID
+            sm_id: DEFAULT_SERVICE_ID,
+            callback: callback.clone(),
         };
         let nr1 = nodes.clone();
+        let cb1 = callback.clone();
         membership_cb.internal_subscribe(
             &on_group_member_offline::new(&group_id),
             move |changes| {
-                mark_member(false, changes, &nr1)
+                mark_member(false, changes, &nr1, &cb1)
         });
         let nr2 = nodes.clone();
+        let cb2 = callback.clone();
         membership_cb.internal_subscribe(
             &on_group_member_online::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
-                mark_member(true, changes, &nr2)
+                mark_member(true, changes, &nr2, &cb2)
             });
         let nr3 = nodes.clone();
+        let cb3 = callback.clone();
         membership_cb.internal_subscribe(
             &on_group_member_joined::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
-                mark_member(true, changes, &nr3)
+                mark_member(true, changes, &nr3, &cb3)
             });
         let nr4 = nodes.clone();
+        let cb4 = callback.clone();
         membership_cb.internal_subscribe(
             &on_group_member_left::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
-                mark_member(false, changes, &nr4)
+                mark_member(false, changes, &nr4, &cb4)
             });
         return manager;
     }
@@ -176,12 +192,21 @@ impl ResourceManager {
 fn mark_member(
     online: bool,
     changes: &Result<(ClientMember, u64), ()>,
-    nodes: &Arc<RwLock<BTreeMap<u64, ComputeNode>>>
+    nodes: &Arc<RwLock<BTreeMap<u64, ComputeNode>>>,
+    callback: &Arc<CallbackTrigger>
 ) {
     if let &Ok((ref member, _)) = changes {
         let mut nr = nodes.write();
         if let Some(ref mut node) = nr.get_mut(&member.id) {
             node.online = online;
+            let node_for_update = node.clone();
+            callback.sm_callback.notify(
+                &commands::on_member_changed::new(), Ok(node_for_update)
+            );
         }
     }
+}
+
+struct CallbackTrigger {
+    sm_callback: SMCallback
 }
