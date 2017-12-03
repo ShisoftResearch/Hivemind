@@ -12,28 +12,46 @@ use neb::dovahkiin::types::Map;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use parking_lot::RwLock;
+use itertools::Itertools;
 
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_RESOURCE_MANAGER) as u64;
 
 raft_state_machine! {
-    def cmd register_node(node: ComputeNode) | String;
+    def cmd register_node(node: ComputeNode) | RegisterNodeError;
     def cmd register_task(
         task: Task,
         occupations: Vec<Occupation>
-    ) -> Vec<Occupation> | String;
+    ) | RegisterTaskError;
 
     def cmd degegister_node(node_id: u64) | String;
     def cmd task_ended(task_id: u64, status: TaskStatus) | String;
-    def cmd occupation_ended(
+    def cmd change_occupation_status(
         task_id: u64,
         stage_id: u64,
-        node_id: u64
-    ) | String; // this will trigger on_scheduled_occupied
+        node_id: u64,
+        status: OccupationStatus
+    ) | ChangeOccupationStatusError;
 
     def qry tasks() -> Vec<Task>;
     def qry nodes() -> Vec<ComputeNode>;
 
     def sub on_member_changed() -> ComputeNode;
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum RegisterNodeError {
+    NodeAlreadyExisted
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum RegisterTaskError {
+    NodeIdNotFound(u64)
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ChangeOccupationStatusError {
+    CannotFindOccupation,
+    OccupationTaskNotMatch,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -44,6 +62,7 @@ pub struct Occupation {
     pub memory: u64,
     pub node_id: u64,
     pub status: OccupationStatus,
+    pub last_updated: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -52,6 +71,7 @@ pub struct Task {
     name: String,
     status: TaskStatus,
     stages: Vec<u64>,
+    nodes: Vec<u64>,
     meta: Map,
 }
 
@@ -74,11 +94,9 @@ pub enum TaskStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum OccupationStatus {
-    Occupied, // resource is ready for use
-    Scheduled, // queued
+    Running,
+    Scheduled,
     Released,
-    NotReliable,
-    None,
 }
 
 
@@ -90,15 +108,37 @@ pub struct ResourceManager {
 }
 
 impl StateMachineCmds for ResourceManager {
-    fn register_node(&mut self, node: ComputeNode) -> Result<(), String> {
+    fn register_node(&mut self, node: ComputeNode) -> Result<(), RegisterNodeError> {
         let mut nodes = self.compute_nodes.write();
-        nodes.insert(node.node_id, node);
-        return Ok(())
+        if !nodes.contains_key(&node.node_id) {
+            nodes.insert(node.node_id, node);
+            return Ok(())
+        } else {
+            return Err(RegisterNodeError::NodeAlreadyExisted)
+        }
     }
-    fn register_task(&mut self, task: Task, occupations: Vec<Occupation>)
-        -> Result<Vec<Occupation>, String>
+    fn register_task(&mut self, mut task: Task, occupations: Vec<Occupation>)
+        -> Result<(), RegisterTaskError>
     {
-        unimplemented!()
+        task.nodes = occupations
+            .iter()
+            .map(|occ| occ.node_id)
+            .collect();
+        task.nodes.dedup();
+        let mut nodes = self.compute_nodes.write();
+        // check all occupation nodes are available
+        for occ in &occupations {
+            if !nodes.contains_key(&occ.node_id) {
+                return Err(RegisterTaskError::NodeIdNotFound(occ.node_id))
+            }
+        }
+        // append occupations to their nodes
+        for occ in occupations {
+            nodes.get_mut(&occ.node_id).unwrap().occupations.insert(occ.stage_id, occ);
+        }
+        // append task
+        self.tasks.insert(task.id, task);
+        return Ok(())
     }
     fn degegister_node(&mut self, node_id: u64) -> Result<(), String> {
         let mut nodes = self.compute_nodes.write();
@@ -106,20 +146,32 @@ impl StateMachineCmds for ResourceManager {
         return Ok(());
     }
     fn task_ended(&mut self, task_id: u64, status: TaskStatus) -> Result<(), String> {
-        if let Some(mut task) = self.tasks.get_mut(&task_id) {
+        if let Some(task) = self.tasks.get_mut(&task_id) {
             task.status = status;
             Ok(())
         } else {
             Err(format!("Cannot find task with id {}", task_id))
         }
     }
-    fn occupation_ended(
+    fn change_occupation_status(
         &mut self,
         task_id: u64,
         stage_id: u64,
-        node_id: u64
-    ) -> Result<(), String> {
-        unimplemented!()
+        node_id: u64,
+        status: OccupationStatus,
+    ) -> Result<(), ChangeOccupationStatusError> {
+        let mut nodes = self.compute_nodes.write();
+        if let Some(mut node) = nodes.get_mut(&node_id) {
+            if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
+                if occ.task_id == task_id {
+                    occ.status = status;
+                    return Ok(())
+                } else {
+                    return Err(ChangeOccupationStatusError::OccupationTaskNotMatch)
+                }
+            }
+        }
+        return Err(ChangeOccupationStatusError::CannotFindOccupation);
     }
     fn tasks(&self) -> Result<Vec<Task>, ()> {
         unimplemented!()
