@@ -174,10 +174,11 @@ impl StateMachineCmds for ResourceManager {
         return Err(ChangeOccupationStatusError::CannotFindOccupation);
     }
     fn tasks(&self) -> Result<Vec<Task>, ()> {
-        unimplemented!()
+        Ok(self.tasks.values().cloned().collect())
     }
     fn nodes(&self) -> Result<Vec<ComputeNode>, ()> {
-        unimplemented!()
+        let mut nodes = self.compute_nodes.read();
+        Ok(nodes.values().cloned().collect())
     }
 }
 
