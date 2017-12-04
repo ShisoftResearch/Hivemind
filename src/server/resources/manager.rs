@@ -1,3 +1,6 @@
+// Resource manager is for tracking and notifying compute nodes, tasks and occupations changes
+// It does not do any actual
+
 use bifrost::conshash::ConsistentHashing;
 use bifrost::raft::RaftService;
 use bifrost::raft::state_machine::StateMachineCtl;
@@ -46,7 +49,8 @@ pub enum RegisterNodeError {
 
 #[derive(Serialize, Deserialize)]
 pub enum RegisterTaskError {
-    NodeIdNotFound(u64)
+    NodeIdNotFound(u64),
+    OccupationStatusNotScheduled
 }
 
 #[derive(Serialize, Deserialize)]
@@ -96,8 +100,8 @@ pub enum TaskStatus {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OccupationStatus {
     Running,
-    Scheduled,
     Released,
+    Scheduled, // default initial status
 }
 
 
@@ -129,6 +133,9 @@ impl StateMachineCmds for ResourceManager {
         let mut nodes = self.compute_nodes.write();
         // check all occupation nodes are available
         for occ in &occupations {
+            if occ.status != OccupationStatus::Scheduled {
+                return Err(RegisterTaskError::OccupationStatusNotScheduled)
+            }
             if !nodes.contains_key(&occ.node_id) {
                 return Err(RegisterTaskError::NodeIdNotFound(occ.node_id))
             }
