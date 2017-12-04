@@ -1,5 +1,7 @@
 // Resource manager is for tracking and notifying compute nodes, tasks and occupations changes
 // It does not do any actual scheduling and node placement (scheduler will do it)
+// When scheduler received notification from RM about occupation changes, it should try to
+//  compete with other nodes through
 
 
 use bifrost::conshash::ConsistentHashing;
@@ -47,6 +49,7 @@ raft_state_machine! {
 
     def sub on_member_changed() -> ComputeNode;
     def sub on_occupation_changed() -> Occupation;
+    def sub on_resource_available() -> Occupation;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -184,10 +187,7 @@ impl StateMachineCmds for ResourceManager {
                         occ.status = OccupationStatus::Running;
                         node.memory_remains -= occ.memory;
                         node.processors_remains -= occ.workers;
-                        self.callback.sm_callback.notify(
-                            &commands::on_occupation_changed::new(),
-                            Ok(occ.clone())
-                        );
+                        self.notify_occupation_changes(occ);
                         return Ok(true)
                     } else {
                         return Ok(false)
@@ -213,10 +213,7 @@ impl StateMachineCmds for ResourceManager {
                         occ.status = OccupationStatus::Released;
                         node.memory_remains += occ.memory;
                         node.processors_remains += occ.workers;
-                        self.callback.sm_callback.notify(
-                            &commands::on_occupation_changed::new(),
-                            Ok(occ.clone())
-                        );
+                        self.notify_occupation_changes(occ);
                         return Ok(true)
                     } else {
                         return Ok(false)
@@ -294,6 +291,18 @@ impl ResourceManager {
                 mark_member(false, changes, &nr4, &cb4)
             });
         return manager;
+    }
+    fn notify_occupation_changes(&self, occ: &Occupation) {
+        self.callback.sm_callback.notify(
+            &commands::on_occupation_changed::new(),
+            Ok(occ.clone())
+        );
+        if occ.status == OccupationStatus::Released {
+            self.callback.sm_callback.notify(
+                &commands::on_resource_available::new(),
+                Ok(occ.clone())
+            );
+        }
     }
 }
 
