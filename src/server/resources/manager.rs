@@ -1,7 +1,13 @@
 // Resource manager is for tracking and notifying compute nodes, tasks and occupations changes
 // It does not do any actual scheduling and node placement (scheduler will do it)
+// Scheduler must first register task by calling `register_task` with occupations and their
+//  placecment. All of those occupation status should be initialized to `Scheduled`
+// In the meanwhile, if there is resources available, RM may change occupation status into
+//  `Running` and return new status to scheduler on `register_task`, for performance consideration.
 // When scheduler received notification from RM about occupation changes, it should try to
-//  compete with other nodes through
+//  compete with other nodes through `try_acquire_node_resource` API. If it returns true, then
+//  the scheduler is safe to use the resource like sending job to the node. If RM return false,
+//  the scheduler should wait for another new resource notification from RM.
 
 
 use bifrost::conshash::ConsistentHashing;
@@ -27,7 +33,7 @@ raft_state_machine! {
     def cmd register_task(
         task: Task,
         occupations: Vec<Occupation>
-    ) | RegisterTaskError;
+    ) -> Vec<Occupation> | RegisterTaskError;
 
     def cmd degegister_node(node_id: u64) | String;
     def cmd task_ended(task_id: u64, status: TaskStatus) | String;
@@ -50,6 +56,15 @@ raft_state_machine! {
     def sub on_member_changed() -> ComputeNode;
     def sub on_occupation_changed() -> Occupation;
     def sub on_resource_available() -> Occupation;
+}
+
+macro_rules! acquire_res {
+    ($s: expr, $node: expr, $occ: expr) => {
+        $occ.status = OccupationStatus::Running;
+        $node.memory_remains -= $occ.memory;
+        $node.processors_remains -= $occ.workers;
+        $s.notify_occupation_changes($occ);
+    };
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,8 +149,8 @@ impl StateMachineCmds for ResourceManager {
             return Err(RegisterNodeError::NodeAlreadyExisted)
         }
     }
-    fn register_task(&mut self, mut task: Task, occupations: Vec<Occupation>)
-        -> Result<(), RegisterTaskError>
+    fn register_task(&mut self, mut task: Task, mut occupations: Vec<Occupation>)
+        -> Result<Vec<Occupation>, RegisterTaskError>
     {
         task.nodes = occupations
             .iter()
@@ -143,22 +158,34 @@ impl StateMachineCmds for ResourceManager {
             .collect();
         task.nodes.dedup();
         let mut nodes = self.compute_nodes.write();
-        // check all occupation nodes are available
-        for occ in &occupations {
+        // check all occupation
+        for occ in &mut occupations {
             if occ.status != OccupationStatus::Scheduled {
                 return Err(RegisterTaskError::OccupationStatusNotScheduled)
             }
-            if !nodes.contains_key(&occ.node_id) {
+            if let Some(mut node) = nodes.get_mut(&occ.node_id) {
+                if can_afford_occupation(
+                    node.memory_remains, occ.memory,
+                    node.processors_remains, occ.workers
+                ) {
+                    acquire_res!(self, node, occ);
+                }
+            } else {
                 return Err(RegisterTaskError::NodeIdNotFound(occ.node_id))
             }
+
         }
-        // append occupations to their nodes
+        let mut running_occupations = Vec::new();
+        // append occupations to their nodes and also check it's status
         for occ in occupations {
+            if occ.status == OccupationStatus::Running {
+                running_occupations.push(occ.clone());
+            }
             nodes.get_mut(&occ.node_id).unwrap().occupations.insert(occ.stage_id, occ);
         }
         // append task
         self.tasks.insert(task.id, task);
-        return Ok(())
+        return Ok(running_occupations)
     }
     fn degegister_node(&mut self, node_id: u64) -> Result<(), String> {
         let mut nodes = self.compute_nodes.write();
@@ -183,11 +210,11 @@ impl StateMachineCmds for ResourceManager {
         if let Some(mut node) = nodes.get_mut(&node_id) {
             if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
                 if occ.task_id == task_id {
-                    if node.memory_remains >= occ.memory && node.processors_remains >= occ.workers {
-                        occ.status = OccupationStatus::Running;
-                        node.memory_remains -= occ.memory;
-                        node.processors_remains -= occ.workers;
-                        self.notify_occupation_changes(occ);
+                    if can_afford_occupation(
+                        node.memory_remains, occ.memory,
+                        node.processors_remains, occ.workers
+                    ) {
+                        acquire_res!(self, node, occ);
                         return Ok(true)
                     } else {
                         return Ok(false)
@@ -342,6 +369,13 @@ fn mark_member(
             );
         }
     }
+}
+
+fn can_afford_occupation(
+    node_mem: u64, occ_mem: u64,
+    node_proc: u32, occ_proc: u32
+) -> bool {
+    node_mem >= occ_mem && node_proc >= occ_proc
 }
 
 struct CallbackTrigger {
