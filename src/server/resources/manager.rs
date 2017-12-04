@@ -36,6 +36,7 @@ raft_state_machine! {
     def qry nodes() -> Vec<ComputeNode>;
 
     def sub on_member_changed() -> ComputeNode;
+    def sub on_occupation_changed() -> Occupation;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -92,7 +93,7 @@ pub enum TaskStatus {
     Canceled
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OccupationStatus {
     Running,
     Scheduled,
@@ -165,6 +166,10 @@ impl StateMachineCmds for ResourceManager {
             if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
                 if occ.task_id == task_id {
                     occ.status = status;
+                    self.callback.sm_callback.notify(
+                        &commands::on_occupation_changed::new(),
+                        Ok(occ.clone())
+                    );
                     return Ok(())
                 } else {
                     return Err(ChangeOccupationStatusError::OccupationTaskNotMatch)
