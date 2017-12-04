@@ -1,7 +1,7 @@
 // Resource manager is for tracking and notifying compute nodes, tasks and occupations changes
 // It does not do any actual scheduling and node placement (scheduler will do it)
 // Scheduler must first register task by calling `register_task` with occupations and their
-//  placecment. All of those occupation status should be initialized to `Scheduled`
+//  placement. All of those occupation status should be initialized to `Scheduled`
 // In the meanwhile, if there is resources available, RM may change occupation status into
 //  `Running` and return new status to scheduler on `register_task`, for performance consideration.
 // When scheduler received notification from RM about occupation changes, it should try to
