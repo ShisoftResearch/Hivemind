@@ -1,5 +1,6 @@
 // Resource manager is for tracking and notifying compute nodes, tasks and occupations changes
-// It does not do any actual
+// It does not do any actual scheduling and node placement (scheduler will do it)
+
 
 use bifrost::conshash::ConsistentHashing;
 use bifrost::raft::RaftService;
@@ -28,12 +29,18 @@ raft_state_machine! {
 
     def cmd degegister_node(node_id: u64) | String;
     def cmd task_ended(task_id: u64, status: TaskStatus) | String;
-    def cmd change_occupation_status(
+
+    def cmd try_acquire_node_resource(
         task_id: u64,
         stage_id: u64,
-        node_id: u64,
-        status: OccupationStatus
-    ) | ChangeOccupationStatusError;
+        node_id: u64
+    ) -> bool | ChangeOccupationStatusError;
+
+    def cmd release_occupation(
+        task_id: u64,
+        stage_id: u64,
+        node_id: u64
+    ) -> bool | ChangeOccupationStatusError;
 
     def qry tasks() -> Vec<Task>;
     def qry nodes() -> Vec<ComputeNode>;
@@ -56,7 +63,7 @@ pub enum RegisterTaskError {
 #[derive(Serialize, Deserialize)]
 pub enum ChangeOccupationStatusError {
     CannotFindOccupation,
-    OccupationTaskNotMatch,
+    OccupationTaskNotMatch
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -84,10 +91,12 @@ pub struct Task {
 pub struct ComputeNode {
     address: String,
     memory: u64,
-    processors: u64,
+    memory_remains: u64,
+    processors: u32,
+    processors_remains: u32,
     node_id: u64,
     online: bool,
-    occupations: BTreeMap<u64, Occupation>
+    occupations: BTreeMap<u64, Occupation>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -113,7 +122,7 @@ pub struct ResourceManager {
 }
 
 impl StateMachineCmds for ResourceManager {
-    fn register_node(&mut self, node: ComputeNode) -> Result<(), RegisterNodeError> {
+    fn register_node(&mut self, mut node: ComputeNode) -> Result<(), RegisterNodeError> {
         let mut nodes = self.compute_nodes.write();
         if !nodes.contains_key(&node.node_id) {
             nodes.insert(node.node_id, node);
@@ -161,23 +170,57 @@ impl StateMachineCmds for ResourceManager {
             Err(format!("Cannot find task with id {}", task_id))
         }
     }
-    fn change_occupation_status(
+    fn try_acquire_node_resource(
         &mut self,
         task_id: u64,
         stage_id: u64,
-        node_id: u64,
-        status: OccupationStatus,
-    ) -> Result<(), ChangeOccupationStatusError> {
+        node_id: u64
+    ) -> Result<bool, ChangeOccupationStatusError> {
         let mut nodes = self.compute_nodes.write();
         if let Some(mut node) = nodes.get_mut(&node_id) {
             if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
                 if occ.task_id == task_id {
-                    occ.status = status;
-                    self.callback.sm_callback.notify(
-                        &commands::on_occupation_changed::new(),
-                        Ok(occ.clone())
-                    );
-                    return Ok(())
+                    if node.memory_remains >= occ.memory && node.processors_remains >= occ.workers {
+                        occ.status = OccupationStatus::Running;
+                        node.memory_remains -= occ.memory;
+                        node.processors_remains -= occ.workers;
+                        self.callback.sm_callback.notify(
+                            &commands::on_occupation_changed::new(),
+                            Ok(occ.clone())
+                        );
+                        return Ok(true)
+                    } else {
+                        return Ok(false)
+                    }
+                } else {
+                    return Err(ChangeOccupationStatusError::OccupationTaskNotMatch)
+                }
+            }
+        }
+        return Err(ChangeOccupationStatusError::CannotFindOccupation);
+    }
+    fn release_occupation(
+        &mut self,
+        task_id: u64,
+        stage_id: u64,
+        node_id: u64
+    ) -> Result<bool, ChangeOccupationStatusError> {
+        let mut nodes = self.compute_nodes.write();
+        if let Some(mut node) = nodes.get_mut(&node_id) {
+            if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
+                if occ.task_id == task_id {
+                    if occ.status == OccupationStatus::Running {
+                        occ.status = OccupationStatus::Released;
+                        node.memory_remains += occ.memory;
+                        node.processors_remains += occ.workers;
+                        self.callback.sm_callback.notify(
+                            &commands::on_occupation_changed::new(),
+                            Ok(occ.clone())
+                        );
+                        return Ok(true)
+                    } else {
+                        return Ok(false)
+                    }
                 } else {
                     return Err(ChangeOccupationStatusError::OccupationTaskNotMatch)
                 }
@@ -251,6 +294,26 @@ impl ResourceManager {
                 mark_member(false, changes, &nr4, &cb4)
             });
         return manager;
+    }
+}
+
+impl ComputeNode {
+    pub fn new<'a>(
+        address: &'a str,
+        node_id: u64,
+        memory: u64,
+        processors: u32,
+    ) -> ComputeNode {
+        ComputeNode {
+            address: address.to_string(),
+            memory,
+            memory_remains: memory,
+            processors,
+            processors_remains: processors,
+            node_id,
+            online: true,
+            occupations: BTreeMap::new(),
+        }
     }
 }
 
