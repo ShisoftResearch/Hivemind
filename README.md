@@ -1,2 +1,0 @@
-# Hivemind
-Distributed computing framework
