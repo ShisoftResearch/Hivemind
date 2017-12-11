@@ -7,13 +7,13 @@ use std::cell::RefCell;
 pub mod script;
 
 // #[derive(Serialize, Deserialize, Clone)]
-pub struct TaskContext {
+pub struct JobContext {
     rdds: BTreeMap<RDDID, Box<RDD>>
 }
 
-impl TaskContext {
-    pub fn new() -> TaskContext {
-        TaskContext {
+impl JobContext {
+    pub fn new() -> JobContext {
+        JobContext {
             rdds: BTreeMap::new()
         }
     }

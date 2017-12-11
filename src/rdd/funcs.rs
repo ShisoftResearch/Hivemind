@@ -94,6 +94,8 @@ impl RDDFuncResult {
 }
 
 pub trait RDDFunc: Serialize + Sized + Clone + 'static {
+    type Out;
+    type In;
     fn call(closure: &Box<Any>, args: &Box<Any>) -> RDDFuncResult;
     fn id() -> u64;
     fn decode(bytes: &Vec<u8>) -> Box<Any>;

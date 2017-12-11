@@ -1,5 +1,5 @@
 use self::funcs::RDDFunc;
-use super::contexts::TaskContext;
+use super::contexts::JobContext;
 use std::any::{Any, TypeId};
 use uuid::Uuid;
 #[macro_use]
@@ -7,6 +7,7 @@ pub mod macros;
 pub mod funcs;
 pub mod script;
 pub mod transformers;
+pub mod composer;
 
 pub type AnyIter = Box<Iterator<Item = Box<Any + 'static>> + 'static>;
 
