@@ -167,5 +167,6 @@ mod test {
             .map(APlusB{b: 5});
         rdd.compile(&mut context);
         assert_eq!(context.dag.len(), 3);
+        let job = context.compile().unwrap();
     }
 }
