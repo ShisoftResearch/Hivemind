@@ -161,10 +161,11 @@ mod test {
         AGreaterThanN::register().unwrap();
         let mut context = ScriptContext::new();
         let dum = Dummy{};
-        dum
+        let rdd = dum
             .map(APlusB{b: 10})
             .filter(AGreaterThanN{ n: 5 })
             .map(APlusB{b: 5});
-        dum.compile(&mut context);
+        rdd.compile(&mut context);
+        assert_eq!(context.dag.len(), 3);
     }
 }
