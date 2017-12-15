@@ -28,6 +28,7 @@ pub struct ServerOptions {
     pub address: String,
     pub group_name: String,
     pub meta_members: Vec<String>,
+    pub storage: String
 }
 
 pub struct HMServer {
