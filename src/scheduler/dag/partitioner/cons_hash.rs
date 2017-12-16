@@ -3,14 +3,14 @@
 use super::Partitioner;
 use rdd::Partition;
 use bifrost::conshash::ConsistentHashing;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bifrost_hasher::hash_bytes;
 
 pub struct ConsistentHashingPartitioner {
     partitions: usize,
-    server_map: BTreeMap<u64, usize>, // map server id to partition
+    server_map: HashMap<u64, usize>, // map server id to partition
     cons_hash: Arc<ConsistentHashing>
 }
 
@@ -28,7 +28,7 @@ impl Partitioner for ConsistentHashingPartitioner {
 
 impl ConsistentHashingPartitioner {
     pub fn new(partitions: &Vec<Partition>, cons_hash: &Arc<ConsistentHashing>) -> Self {
-        let mut server_map = BTreeMap::new();
+        let mut server_map = HashMap::new();
         for p in partitions {
             server_map.insert(p.server, p.index);
         }
