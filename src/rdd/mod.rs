@@ -33,7 +33,8 @@ impl RDDID {
 }
 
 pub struct Partition {
-    index: u32
+    pub index: usize,
+    pub server: u64,
 }
 
 pub trait RDD {

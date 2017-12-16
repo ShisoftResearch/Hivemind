@@ -14,6 +14,6 @@ impl Partitioner for HashPartitioner {
 
     fn get_partition(&self, key: &Vec<u8>) -> usize {
         let hash = hash_bytes(key) as usize;
-        return hash % self.partitions
+        hash % self.partitions
     }
 }
