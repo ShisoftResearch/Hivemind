@@ -1,2 +1,2 @@
-mod stages;
-mod dag;
+pub mod stages;
+pub mod dag;

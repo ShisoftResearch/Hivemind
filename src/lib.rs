@@ -27,6 +27,7 @@ extern crate itertools;
 pub mod rdd;
 pub mod contexts;
 pub mod server;
+pub mod scheduler;
 
 use parking_lot::Mutex;
 

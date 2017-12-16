@@ -1,6 +1,7 @@
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
 use rdd::transformers::{Registry, REGISTRY, RegedTrans};
+use scheduler::dag::partitioner::Partitioner;
 use std::any::Any;
 
 pub struct Filter {
@@ -35,6 +36,9 @@ impl RDD for Filter {
         Box::new(iter)
     }
     fn get_dependencies(&self) -> &Vec<&Box<RDD>> {
+        unimplemented!()
+    }
+    fn get_partitioner(&self) -> &Box<Partitioner> {
         unimplemented!()
     }
     fn id(&self) -> RDDID {

@@ -1,5 +1,6 @@
 use self::funcs::RDDFunc;
 use super::contexts::JobContext;
+use scheduler::dag::partitioner::Partitioner;
 use std::any::{Any, TypeId};
 use uuid::Uuid;
 #[macro_use]
@@ -42,6 +43,7 @@ pub trait RDD {
         partition: &Partition,
     ) -> AnyIter;
     fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
+    fn get_partitioner(&self) -> &Box<Partitioner>;
     fn id(&self) -> RDDID;
 }
 
