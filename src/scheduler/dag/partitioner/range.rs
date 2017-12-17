@@ -16,3 +16,13 @@
 // Note 2: Range partitioner is meant to be uncommon for it's higher price of sampling. It should
 //  only be used when necessary, like ordering. For `group_by` that may be unbalanced, we should
 //  let it happened by using `HashPartitioner` instead
+
+use contexts::script::RDDComposer;
+
+pub fn plan_sampling<R, S>(rdd: &R)  -> S
+    where S: RDDComposer,
+          R: RDDComposer
+{
+    unimplemented!()
+}
+
