@@ -5,6 +5,7 @@ use rdd::RDD;
 
 pub mod map;
 pub mod filter;
+pub mod map_partitions;
 
 #[derive(Clone)]
 pub struct RegedTrans {
