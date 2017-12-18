@@ -28,6 +28,7 @@ pub mod rdd;
 pub mod contexts;
 pub mod server;
 pub mod scheduler;
+pub mod storage;
 
 use parking_lot::Mutex;
 

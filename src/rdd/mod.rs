@@ -35,6 +35,7 @@ impl RDDID {
 pub struct Partition {
     pub index: usize,
     pub server: u64,
+    pub meta: Option<Box<Any>>
 }
 
 pub trait RDD {
@@ -46,6 +47,12 @@ pub trait RDD {
     fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
     fn get_partitioner(&self) -> &Box<Partitioner>;
     fn id(&self) -> RDDID;
+    fn iterator(&self, partition: &Partition, ctx: &JobContext) {
+        unimplemented!()
+    }
+    fn get_or_compute(&self, split: &Partition, ctx: &JobContext) {
+        unimplemented!()
+    }
 }
 
 pub trait RDDTracker: RDD + Sized {
