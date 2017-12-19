@@ -10,6 +10,7 @@ pub mod funcs;
 pub mod script;
 pub mod transformers;
 pub mod composer;
+pub mod dependency;
 
 pub type AnyIter = Box<Iterator<Item = Box<Any + 'static>> + 'static>;
 
