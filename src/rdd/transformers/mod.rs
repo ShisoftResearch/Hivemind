@@ -9,14 +9,14 @@ pub mod filter;
 pub mod map_partitions;
 
 #[derive(Clone)]
-pub struct RegedTrans {
+pub struct RegisteredTransformer {
     pub construct: fn (Box<Any>) -> Result<Rc<RDD>, String>,
     pub construct_args: fn (&Vec<u8>) -> Box<Any>
 }
 
 
 pub struct Registry {
-    map: RefCell<BTreeMap<u64, RegedTrans>>
+    map: RefCell<BTreeMap<u64, RegisteredTransformer>>
 }
 
 impl Registry {
@@ -32,11 +32,11 @@ impl Registry {
         construct_args: fn (&Vec<u8>) -> Box<Any>
     ) {
         let mut reg = self.map.borrow_mut();
-        reg.insert(id, RegedTrans {
+        reg.insert(id, RegisteredTransformer {
             construct, construct_args
         });
     }
-    pub fn get(&self, id: u64) -> Option<RegedTrans> {
+    pub fn get(&self, id: u64) -> Option<RegisteredTransformer> {
         let borrowed = self.map.borrow();
         borrowed.get(&id).cloned()
     }
