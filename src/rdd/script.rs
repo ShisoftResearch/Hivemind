@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use rdd::{RDDID, RDD};
 use rdd::transformers::REGISTRY;
 
@@ -18,7 +19,7 @@ pub enum RDDScriptCtx {
 }
 
 impl RDDScript {
-    pub fn compile(&self) -> Result<Box<RDD>, String> {
+    pub fn compile(&self) -> Result<Rc<RDD>, String> {
         match self.ctx {
             RDDScriptCtx::Transformer {id, ref data} => {
                 let reg_trans = REGISTRY.get(id).ok_or("cannot find rdd transformer")?;

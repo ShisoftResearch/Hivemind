@@ -20,8 +20,6 @@ extern crate parking_lot;
 extern crate typedef;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate itertools;
-
 
 #[macro_use]
 pub mod rdd;

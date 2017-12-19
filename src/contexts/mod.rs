@@ -1,20 +1,20 @@
 use uuid::Uuid;
-use super::rdd::{RDD, RDDID};
-use std::collections::BTreeMap;
+use rdd::{RDD, RDDID};
+use std::collections::HashMap;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub mod script;
 
-// #[derive(Serialize, Deserialize, Clone)]
 pub struct JobContext {
-    rdds: BTreeMap<RDDID, Box<RDD>>
+    rdds: HashMap<RDDID, Rc<RDD>>
 }
 
 impl JobContext {
     pub fn new() -> JobContext {
         JobContext {
-            rdds: BTreeMap::new()
+            rdds: HashMap::new()
         }
     }
 }

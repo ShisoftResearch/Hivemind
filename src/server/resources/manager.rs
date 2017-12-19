@@ -24,7 +24,6 @@ use neb::dovahkiin::types::Map;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use parking_lot::RwLock;
-use itertools::Itertools;
 
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_RESOURCE_MANAGER) as u64;
 

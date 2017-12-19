@@ -5,12 +5,12 @@ macro_rules! impl_rdd_trans_tracker {
             fn trans_id() -> u64 {
                 ident_id!($name)
             }
-            fn new(args: Box<Any>) -> Result<Box<RDD>, String> {
+            fn new(args: Box<Any>) -> Result<::std::rc::Rc<RDD>, String> {
                 match args.downcast_ref::<( $($cargt,)* )>() {
                     Some(args) => {
                         let &( $(ref $carg,)* ) = args;
                         $constructor
-                            .map(|rdd| -> Box<RDD> { box rdd })
+                            .map(|rdd| -> ::std::rc::Rc<RDD> { ::std::rc::Rc::new(rdd) })
                     },
                     None => {
                         return Err(format!("Cannot cast type to create rdd: {:?}", args));

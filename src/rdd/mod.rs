@@ -1,7 +1,8 @@
-use self::funcs::RDDFunc;
+use std::any::{Any, TypeId};
+use std::rc::{Rc, Weak};
+use self::funcs::{RDDFunc};
 use super::contexts::JobContext;
 use scheduler::dag::partitioner::Partitioner;
-use std::any::{Any, TypeId};
 use uuid::Uuid;
 #[macro_use]
 pub mod macros;
@@ -42,22 +43,19 @@ pub trait RDD {
     fn compute(
         &self,
         iter: AnyIter,
-        partition: &Partition,
+        partition: &Weak<Partition>,
     ) -> AnyIter;
-    fn get_dependencies(&self) -> &Vec<&Box<RDD>>;
-    fn get_partitioner(&self) -> &Box<Partitioner>;
+    fn get_dependencies(&self) -> &Vec<Weak<RDD>>;
+    fn get_partitioner(&self) -> &Weak<Partitioner>;
     fn id(&self) -> RDDID;
-    fn iterator(&self, partition: &Partition, ctx: &JobContext) {
-        unimplemented!()
-    }
-    fn get_or_compute(&self, split: &Partition, ctx: &JobContext) {
+    fn get_or_compute(&self, split: &Weak<Partition>, ctx: &JobContext) {
         unimplemented!()
     }
 }
 
 pub trait RDDTracker: RDD + Sized {
     fn trans_id() -> u64;
-    fn new(params: Box<Any>) -> Result<Box<RDD>, String>;
+    fn new(params: Box<Any>) -> Result<Rc<RDD>, String>;
     fn construct_arg (data: &Vec<u8>) -> Box<Any>;
     fn register();
 }

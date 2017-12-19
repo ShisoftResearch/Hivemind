@@ -11,6 +11,7 @@
 
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use rdd::funcs::RDDFunc;
 use rdd::{RDDID, RDDTracker, UNIT_RDDID};
 use rdd::script::{RDDScript, RDDScriptCtx};

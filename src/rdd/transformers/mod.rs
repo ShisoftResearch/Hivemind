@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::cell::RefCell;
 use std::any::Any;
+use std::rc::Rc;
 use rdd::RDD;
 
 pub mod map;
@@ -9,7 +10,7 @@ pub mod map_partitions;
 
 #[derive(Clone)]
 pub struct RegedTrans {
-    pub construct: fn (Box<Any>) -> Result<Box<RDD>, String>,
+    pub construct: fn (Box<Any>) -> Result<Rc<RDD>, String>,
     pub construct_args: fn (&Vec<u8>) -> Box<Any>
 }
 
@@ -27,7 +28,7 @@ impl Registry {
     pub fn register(
         &self,
         id: u64,
-        construct: fn (Box<Any>) -> Result<Box<RDD>, String>,
+        construct: fn (Box<Any>) -> Result<Rc<RDD>, String>,
         construct_args: fn (&Vec<u8>) -> Box<Any>
     ) {
         let mut reg = self.map.borrow_mut();

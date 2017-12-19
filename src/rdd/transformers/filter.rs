@@ -3,6 +3,7 @@ use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
 use rdd::transformers::{Registry, REGISTRY, RegedTrans};
 use scheduler::dag::partitioner::Partitioner;
 use std::any::Any;
+use std::rc::{Rc, Weak};
 
 pub struct Filter {
     closure: Box<Any>,
@@ -24,21 +25,21 @@ impl RDD for Filter {
     fn compute (
         &self,
         iter: AnyIter,
-        partition: &Partition
+        partition: &Weak<Partition>
     ) -> AnyIter {
         let func = (self.func);
         let clone_closure = (self.clone);
         let closure = clone_closure(&self.closure);
         let iter =
             iter.filter(move |d: &Box<Any>| -> bool {
-                func(&closure, d).cast().unwrap()
+                func(&closure, d).inner().unwrap()
             });
         Box::new(iter)
     }
-    fn get_dependencies(&self) -> &Vec<&Box<RDD>> {
+    fn get_dependencies(&self) -> &Vec<Weak<RDD>> {
         unimplemented!()
     }
-    fn get_partitioner(&self) -> &Box<Partitioner> {
+    fn get_partitioner(&self) -> &Weak<Partitioner> {
         unimplemented!()
     }
     fn id(&self) -> RDDID {

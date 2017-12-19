@@ -63,13 +63,13 @@ pub enum RDDFuncResult {
 }
 
 impl RDDFuncResult {
-    pub fn cast<T: Clone + 'static>(&self) -> Result<T, String>
+    pub fn cast<T: 'static>(&self) -> Result<&T, String>
     {
         match self {
             &RDDFuncResult::Ok(ref data) => {
                 match data.downcast_ref::<T>() {
                     Some(res) => {
-                        return Ok(res.clone())
+                        return Ok(res)
                     },
                     None => {
                         return Err(format!("RDD result type mismatch"))
@@ -77,6 +77,24 @@ impl RDDFuncResult {
                 }
             },
             &RDDFuncResult::Err(ref e) => {
+                return Err(format!("RDD result is error: {}", e))
+            }
+        }
+    }
+    pub fn inner<T: 'static>(self) -> Result<T, String>
+    {
+        match self {
+            RDDFuncResult::Ok(data) => {
+                match data.downcast::<T>() {
+                    Ok(res) => {
+                        return Ok(*res)
+                    },
+                    Err(_) => {
+                        return Err(format!("RDD result type mismatch"))
+                    }
+                }
+            },
+            RDDFuncResult::Err(ref e) => {
                 return Err(format!("RDD result is error: {}", e))
             }
         }
@@ -143,13 +161,13 @@ mod test {
     fn reg_call<A, R>(regf: &RegistryRDDFunc, closure: &Box<Any>, params: A) -> Result<R, String>
         where R: Any + Clone, A: Any
     {
-        (regf.func)(closure, &to_any(params)).cast()
+        (regf.func)(closure, &to_any(params)).inner()
     }
     #[test]
     fn test_a_b_rdd() {
-        assert_eq!(APlusB::call(&box APlusB{}.into_any(), &to_any((1 as u64, 2 as u64))).cast::<u64>().unwrap(), 3);
-        assert_eq!(AMultB::call(&box AMultB{}.into_any(), &to_any((2 as u32, 3 as u32))).cast::<u32>().unwrap(), 6);
-        assert_eq!(AMultC::call(&box AMultC{c: 5}.into_any(), &to_any((2 as u32,))).cast::<u32>().unwrap(), 10);
+        assert_eq!(APlusB::call(&box APlusB{}.into_any(), &to_any((1 as u64, 2 as u64))).inner::<u64>().unwrap(), 3);
+        assert_eq!(AMultB::call(&box AMultB{}.into_any(), &to_any((2 as u32, 3 as u32))).inner::<u32>().unwrap(), 6);
+        assert_eq!(AMultC::call(&box AMultC{c: 5}.into_any(), &to_any((2 as u32,))).inner::<u32>().unwrap(), 10);
     }
     #[test]
     fn register_and_invoke_from_registry_by_ptr() {

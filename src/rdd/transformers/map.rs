@@ -1,8 +1,9 @@
+use std::any::Any;
+use std::rc::{Rc, Weak};
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
 use rdd::transformers::{Registry, REGISTRY, RegedTrans};
 use scheduler::dag::partitioner::Partitioner;
-use std::any::Any;
 
 pub struct Map {
     closure: Box<Any>,
@@ -24,7 +25,7 @@ impl RDD for Map {
     fn compute (
         &self,
         iter: AnyIter,
-        partition: &Partition
+        partition: &Weak<Partition>
     ) -> AnyIter {
         let func = (self.func);
         let clone_closure = (self.clone);
@@ -33,10 +34,10 @@ impl RDD for Map {
             func(&closure, &d).unwrap_to_any());
         Box::new(iter)
     }
-    fn get_dependencies(&self) -> &Vec<&Box<RDD>> {
+    fn get_dependencies(&self) -> &Vec<Weak<RDD>> {
         unimplemented!()
     }
-    fn get_partitioner(&self) -> &Box<Partitioner> {
+    fn get_partitioner(&self) -> &Weak<Partitioner> {
         unimplemented!()
     }
     fn id(&self) -> RDDID {
