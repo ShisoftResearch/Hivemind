@@ -19,7 +19,7 @@ impl Shuffle {
 }
 
 pub trait Narrow {
-    fn get_parents(&self, partition_id: u64) -> Vec<u64>;
+    fn get_parent(&self, partition_id: usize) -> usize;
 }
 
 pub struct OneToOne {
@@ -27,8 +27,8 @@ pub struct OneToOne {
 }
 
 impl Narrow for OneToOne {
-    fn get_parents(&self, partition_id: u64) -> Vec<u64> {
-        vec![partition_id]
+    fn get_parent(&self, partition_id: usize) -> usize {
+        partition_id
     }
 }
 
@@ -40,17 +40,18 @@ impl OneToOne {
 
 pub struct Range {
     rdd: Weak<RDD>,
-    in_start: u64,
-    out_start: u64,
-    length: u64,
+    in_start: usize,
+    out_start: usize,
+    length: usize,
 }
 
 impl Narrow for Range {
-    fn get_parents(&self, partition_id: u64) -> Vec<u64> {
+    fn get_parent(&self, partition_id: usize) -> usize {
         if partition_id >= self.out_start && partition_id < self.out_start + self.length {
-            vec![partition_id - self.out_start + self.in_start]
+            partition_id - self.out_start + self.in_start
         } else {
-            vec![]
+            // since the value will not running cross platform, it should be fine
+            ::std::usize::MAX
         }
     }
 }
@@ -58,9 +59,9 @@ impl Narrow for Range {
 impl Range {
     pub fn new (
         rdd: Weak<RDD>,
-        in_start: u64,
-        out_start: u64,
-        length: u64
+        in_start: usize,
+        out_start: usize,
+        length: usize
     ) -> Range {
         Range {rdd, in_start, out_start, length}
     }
