@@ -119,7 +119,7 @@ impl BlockManager {
         let manager = BlockManager {
             owned_blocks: RwLock::new(HashMap::new())
         };
-        raft.register_state_machine(Box::new(registry));
+        raft.register_state_machine(box registry);
         Arc::new(manager)
     }
 }

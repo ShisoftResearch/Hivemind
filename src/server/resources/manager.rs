@@ -276,10 +276,10 @@ impl StateMachineCtl for ResourceManager {
 }
 
 impl ResourceManager {
-    pub fn new(raft: Arc<RaftService>, group_id: u64, membership_cb: &SMCallback) -> ResourceManager {
+    pub fn new(raft: Arc<RaftService>, group_id: u64, membership_cb: &SMCallback) {
         let nodes = Arc::new(RwLock::new(BTreeMap::<u64, ComputeNode>::new()));
         let callback = Arc::new(CallbackTrigger {
-            sm_callback: SMCallback::new(DEFAULT_SERVICE_ID, raft)
+            sm_callback: SMCallback::new(DEFAULT_SERVICE_ID, raft.clone())
         });
         let manager = ResourceManager{
             compute_nodes: nodes.clone(),
@@ -314,7 +314,7 @@ impl ResourceManager {
             move |changes: &Result<(ClientMember, u64), ()>| {
                 mark_member(false, changes, &nr4, &cb4)
             });
-        return manager;
+        raft.register_state_machine(box manager);
     }
     fn notify_occupation_changes(&self, occ: &Occupation) {
         self.callback.sm_callback.notify(
