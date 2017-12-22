@@ -134,12 +134,11 @@ pub enum OccupationStatus {
 pub struct ResourceManager {
     compute_nodes: Arc<RwLock<BTreeMap<u64, ComputeNode>>>,
     tasks: BTreeMap<u64, Task>,
-    callback: Arc<CallbackTrigger>,
-    sm_id: u64
+    callback: Arc<CallbackTrigger>
 }
 
 impl StateMachineCmds for ResourceManager {
-    fn register_node(&mut self, mut node: ComputeNode) -> Result<(), RegisterNodeError> {
+    fn register_node(&mut self, node: ComputeNode) -> Result<(), RegisterNodeError> {
         let mut nodes = self.compute_nodes.write();
         if !nodes.contains_key(&node.node_id) {
             nodes.insert(node.node_id, node);
@@ -206,7 +205,7 @@ impl StateMachineCmds for ResourceManager {
         node_id: u64
     ) -> Result<bool, ChangeOccupationStatusError> {
         let mut nodes = self.compute_nodes.write();
-        if let Some(mut node) = nodes.get_mut(&node_id) {
+        if let Some(node) = nodes.get_mut(&node_id) {
             if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
                 if occ.task_id == task_id {
                     if can_afford_occupation(
@@ -232,7 +231,7 @@ impl StateMachineCmds for ResourceManager {
         node_id: u64
     ) -> Result<bool, ChangeOccupationStatusError> {
         let mut nodes = self.compute_nodes.write();
-        if let Some(mut node) = nodes.get_mut(&node_id) {
+        if let Some(node) = nodes.get_mut(&node_id) {
             if let Some(mut occ) = node.occupations.get_mut(&stage_id) {
                 if occ.task_id == task_id {
                     if occ.status == OccupationStatus::Running {
@@ -255,7 +254,7 @@ impl StateMachineCmds for ResourceManager {
         Ok(self.tasks.values().cloned().collect())
     }
     fn nodes(&self) -> Result<Vec<ComputeNode>, ()> {
-        let mut nodes = self.compute_nodes.read();
+        let nodes = self.compute_nodes.read();
         Ok(nodes.values().cloned().collect())
     }
 }
@@ -263,7 +262,7 @@ impl StateMachineCmds for ResourceManager {
 impl StateMachineCtl for ResourceManager {
     raft_sm_complete!();
     fn id(&self) -> u64 {
-        return self.sm_id;
+        DEFAULT_SERVICE_ID
     }
     fn snapshot(&self) -> Option<Vec<u8>> {
         let nodes = self.compute_nodes.read();
@@ -285,7 +284,6 @@ impl ResourceManager {
         let manager = ResourceManager{
             compute_nodes: nodes.clone(),
             tasks: BTreeMap::new(),
-            sm_id: DEFAULT_SERVICE_ID,
             callback: callback.clone(),
         };
         let nr1 = nodes.clone();

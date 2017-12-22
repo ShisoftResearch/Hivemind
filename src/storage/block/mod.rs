@@ -11,17 +11,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::io::{Write, Read};
 use parking_lot::RwLock;
-use uuid::Uuid;
+use utils::uuid::UUID;
 use byteorder::{ByteOrder, LittleEndian};
 
 pub mod client;
+pub mod registry;
 
 pub struct BlockManager {
-    owned_blocks: RwLock<HashMap<Uuid, Arc<RwLock<LocalOwnedBlock>>>>
+    owned_blocks: RwLock<HashMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>
 }
 
 pub struct LocalOwnedBlock {
-    id: Uuid,
+    id: UUID,
     buffer: Vec<u8>,
     buffer_pos: u64,
     local_file_buf: Option<BufWriter<File>>,
@@ -30,7 +31,7 @@ pub struct LocalOwnedBlock {
 
 impl LocalOwnedBlock {
     pub fn new<'a>(block_dir: &'a str, buffer_cap: usize) -> LocalOwnedBlock {
-        let id = Uuid::new_v4();
+        let id = UUID::rand();
         let file_name = format!("{}.bin", id);
         let file_path = format!("{}/{}", block_dir, file_name);
         LocalOwnedBlock {
@@ -105,8 +106,8 @@ impl LocalOwnedBlock {
 impl Drop for LocalOwnedBlock {
     fn drop(&mut self) {
         if self.local_file_buf.is_some() {
-            self.local_file_buf = None; // drop the writter
-            remove_file(&self.local_file_path);
+            self.local_file_buf = None; // drop the writer
+            remove_file(&self.local_file_path); // remove block file
         }
     }
 }
