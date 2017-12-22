@@ -10,6 +10,7 @@ use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::io::{Write, Read};
+use bifrost::raft::RaftService;
 use parking_lot::RwLock;
 use utils::uuid::UUID;
 use byteorder::{ByteOrder, LittleEndian};
@@ -109,5 +110,16 @@ impl Drop for LocalOwnedBlock {
             self.local_file_buf = None; // drop the writer
             remove_file(&self.local_file_path); // remove block file
         }
+    }
+}
+
+impl BlockManager {
+    pub fn new(raft: Arc<RaftService>) -> Arc<BlockManager> {
+        let registry = registry::BlockRegistry::new();
+        let manager = BlockManager {
+            owned_blocks: RwLock::new(HashMap::new())
+        };
+        raft.register_state_machine(Box::new(registry));
+        Arc::new(manager)
     }
 }

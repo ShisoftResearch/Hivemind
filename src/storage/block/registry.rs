@@ -36,3 +36,11 @@ impl StateMachineCtl for BlockRegistry {
         unimplemented!()
     }
 }
+
+impl BlockRegistry {
+    pub fn new() -> BlockRegistry {
+        BlockRegistry {
+            server_mapping: HashMap::new()
+        }
+    }
+}
