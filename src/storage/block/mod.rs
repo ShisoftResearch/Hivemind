@@ -4,7 +4,7 @@
 // Block is like a blob container without addressing table. It can be appended and read in sequel, lookup is impossible
 // Blocks also support lazy loading and streaming, which means it have a cursor so a request can fetch partial of it.
 
-use std::fs::File;
+use std::fs::{File, remove_file};
 use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
@@ -98,6 +98,15 @@ impl LocalOwnedBlock {
             Ok(true)
         } else {
             Ok(false)
+        }
+    }
+}
+
+impl Drop for LocalOwnedBlock {
+    fn drop(&mut self) {
+        if self.local_file_buf.is_some() {
+            self.local_file_buf = None; // drop the writter
+            remove_file(&self.local_file_path);
         }
     }
 }
