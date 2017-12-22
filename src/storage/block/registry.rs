@@ -5,12 +5,13 @@ use utils::uuid::UUID;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_REGISTRY) as u64;
 
 pub struct BlockRegistry {
-    server_mapping: HashMap<UUID, u64>
+    server_mapping: HashMap<UUID, u64>,
 }
 
 raft_state_machine! {
     def cmd register(id: UUID, host: u64);
     def cmd deregister(id: UUID);
+    def qry get(id: UUID) -> Option<u64>;
 }
 
 impl StateMachineCmds for BlockRegistry {
@@ -21,6 +22,9 @@ impl StateMachineCmds for BlockRegistry {
     fn deregister(&mut self, id: UUID) -> Result<(), ()> {
         self.server_mapping.remove(&id);
         Ok(())
+    }
+    fn get(&self, id: UUID) -> Result<Option<u64>, ()> {
+        Ok(self.server_mapping.get(&id).cloned())
     }
 }
 

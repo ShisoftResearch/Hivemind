@@ -8,18 +8,22 @@ use std::fs::{File, remove_file};
 use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::io::{Write, Read};
+use std::sync::Arc;
 use bifrost::raft::RaftService;
-use parking_lot::RwLock;
+use bifrost::raft::client::RaftClient;
+use parking_lot::{RwLock, Mutex};
 use utils::uuid::UUID;
 use byteorder::{ByteOrder, LittleEndian};
+use storage::block::registry::client::{SMClient as RegClient};
 
 pub mod client;
 pub mod registry;
+mod server;
 
 pub struct BlockManager {
-    owned_blocks: RwLock<HashMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>
+    registry_client: RegClient,
+    server_mapping_cache: Mutex<HashMap<UUID, u64>>
 }
 
 pub struct LocalOwnedBlock {
@@ -31,8 +35,7 @@ pub struct LocalOwnedBlock {
 }
 
 impl LocalOwnedBlock {
-    pub fn new<'a>(block_dir: &'a str, buffer_cap: usize) -> LocalOwnedBlock {
-        let id = UUID::rand();
+    pub fn new<'a>(id: UUID, block_dir: &'a str, buffer_cap: usize) -> LocalOwnedBlock {
         let file_name = format!("{}.bin", id);
         let file_path = format!("{}/{}", block_dir, file_name);
         LocalOwnedBlock {
@@ -44,7 +47,7 @@ impl LocalOwnedBlock {
         }
     }
 
-    pub fn append(&mut self, data: &[u8]) -> io::Result<()> {
+    pub fn append_data(&mut self, data: &[u8]) -> io::Result<()> {
         let buf_cap = self.buffer.capacity();
         let buf_size = self.buffer.len();
         let data_len = data.len();
@@ -70,7 +73,7 @@ impl LocalOwnedBlock {
         Ok(())
     }
 
-    pub fn read(&self, pos: usize, buf: &mut [u8], len: usize) -> io::Result<usize> {
+    pub fn read_data(&self, pos: usize, buf: &mut [u8]) -> io::Result<usize> {
         if self.local_file_buf.is_some() {
             let mut file = File::open(&self.local_file_path)?;
             file.seek(SeekFrom::Start(pos as u64))?;
@@ -114,12 +117,38 @@ impl Drop for LocalOwnedBlock {
 }
 
 impl BlockManager {
-    pub fn new(raft: Arc<RaftService>) -> Arc<BlockManager> {
+    pub fn new(
+        server_id: u64,
+        raft: &Arc<RaftService>,
+        client: &Arc<RaftClient>
+    ) -> Arc<BlockManager> {
         let registry = registry::BlockRegistry::new();
         let manager = BlockManager {
-            owned_blocks: RwLock::new(HashMap::new())
+            registry_client: RegClient::new(registry::DEFAULT_SERVICE_ID, client),
+            server_mapping_cache: Mutex::new(HashMap::new())
         };
         raft.register_state_machine(box registry);
         Arc::new(manager)
     }
+    pub fn read(&self, id: UUID, limit: &ReadLimitBy) -> Option<Vec<Vec<u8>>> {
+        let server_id = self.server_mapping_cache
+            .lock()
+            .entry(id)
+            .or_insert_with(||
+                self.registry_client
+                    .get(&id)
+                    .unwrap()
+                    .unwrap()
+                    .unwrap_or(0))
+            .clone();
+        // shortcut is enabled in bifrost, no need to check locality
+        // let client =
+        unimplemented!()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ReadLimitBy {
+    Size(u64),
+    Items(u64)
 }
