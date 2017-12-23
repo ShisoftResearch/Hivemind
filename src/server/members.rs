@@ -5,7 +5,7 @@ use bifrost::raft::client::RaftClient;
 use std::sync::Arc;
 use std::collections::HashMap;
 
-use parking_lot::RwLock;
+use parking_lot::{RwLock, RwLockReadGuard};
 
 pub enum InitLiveMembersError {
     CannotGetAllMembers
@@ -56,16 +56,19 @@ impl LiveMembers {
     pub fn get_ids(&self) -> Vec<u64> {
         self.members.read().keys().cloned().collect()
     }
+    pub fn members_guarded(&self) -> RwLockReadGuard<HashMap<u64, Member>> {
+        self.members.read()
+    }
 }
 
-pub fn insert(changes: Result<(Member, u64), ()>, members: &Arc<RwLock<HashMap<u64, Member>>>) {
+fn insert(changes: Result<(Member, u64), ()>, members: &Arc<RwLock<HashMap<u64, Member>>>) {
     let mut owned = members.write();
     if let Ok((ref member, _)) = changes {
         owned.insert(member.id, member.clone());
     }
 }
 
-pub fn remove(changes: Result<(Member, u64), ()>, members: &Arc<RwLock<HashMap<u64, Member>>>) {
+fn remove(changes: Result<(Member, u64), ()>, members: &Arc<RwLock<HashMap<u64, Member>>>) {
     let mut owned = members.write();
     if let Ok((ref member, _)) = changes {
         owned.remove(&member.id);

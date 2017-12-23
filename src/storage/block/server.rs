@@ -1,10 +1,12 @@
 use super::*;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
+pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
+
 
 service! {
-    rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> Vec<Vec<u8>> | String;
-    rpc write(id: UUID, items: Vec<Vec<u8>>) | String;
+    rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
+    rpc write(id: UUID, items: Vec<Vec<u8>>) -> u64 | String;
 }
 
 pub struct BlockOwnerServer {
@@ -13,7 +15,7 @@ pub struct BlockOwnerServer {
 }
 
 impl Service for BlockOwnerServer {
-    fn read(&self, id: &UUID, pos: &u64, limit: &ReadLimitBy) -> Result<Vec<Vec<u8>>, String> {
+    fn read(&self, id: &UUID, pos: &u64, limit: &ReadLimitBy) -> Result<(Vec<Vec<u8>>, u64), String> {
         let block = self.blocks
             .read()
             .get(id)
@@ -45,9 +47,9 @@ impl Service for BlockOwnerServer {
             read_bytes += data_len + 8;
             read_items += 1;
         }
-        return Ok(res)
+        return Ok((res, cursor as u64))
     }
-    fn write(&self, id: &UUID, items: &Vec<Vec<u8>>) -> Result<(), String> {
+    fn write(&self, id: &UUID, items: &Vec<Vec<u8>>) -> Result<u64, String> {
         let block = self.blocks
             .write()
             .entry(*id)
@@ -63,7 +65,7 @@ impl Service for BlockOwnerServer {
                 .append_data(item.as_slice())
                 .map_err(|e| format!("{}", e))?
         }
-        Ok(())
+        Ok(owned.size)
     }
 }
 
@@ -75,7 +77,8 @@ pub struct LocalOwnedBlock {
     buffer: Vec<u8>,
     buffer_pos: u64,
     local_file_buf: Option<BufWriter<File>>,
-    local_file_path: String
+    local_file_path: String,
+    size: u64
 }
 
 impl LocalOwnedBlock {
@@ -87,7 +90,8 @@ impl LocalOwnedBlock {
             buffer: Vec::with_capacity(buffer_cap),
             buffer_pos: 0,
             local_file_buf: None,
-            local_file_path: file_path
+            local_file_path: file_path,
+            size: 0
         }
     }
 
@@ -114,6 +118,7 @@ impl LocalOwnedBlock {
         } else { // in-memory
             self.buffer.extend_from_slice(data);
         }
+        self.size += data.len() as u64;
         Ok(())
     }
 

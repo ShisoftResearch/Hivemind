@@ -13,9 +13,11 @@ use std::sync::Arc;
 
 use bifrost::raft::RaftService;
 use bifrost::raft::client::RaftClient;
+use bifrost::rpc::DEFAULT_CLIENT_POOL;
 
 use parking_lot::{RwLock, Mutex};
 use byteorder::{ByteOrder, LittleEndian};
+use futures::{Future, future};
 
 use utils::uuid::UUID;
 use server::members::LiveMembers;
@@ -48,26 +50,93 @@ impl BlockManager {
         raft.register_state_machine(box registry);
         Arc::new(manager)
     }
-    pub fn read(&self, id: UUID, limit: &ReadLimitBy) -> Option<Vec<Vec<u8>>> {
+    pub fn read(&self, cursor: BlockCursor)
+        -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>
+    {
+        match self.get_service(cursor.id) {
+            Ok(service) => {
+                box service
+                    .read(
+                        &cursor.id,
+                        &cursor.pos,
+                        &cursor.limit
+                    )
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+                    .map(|(data, pos)| {
+                        let mut c = cursor;
+                        c.pos = pos;
+                        (data, c)
+                    })
+            },
+            Err(e) => box future::err(e)
+        }
+
+    }
+    pub fn write(&self, id: UUID, items: &Vec<Vec<u8>>)
+        -> Box<Future<Item = u64, Error = String>>
+    {
+        match self.get_service(id) {
+            Ok(service) => {
+                box service
+                    .write(&id, items)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+            },
+            Err(e) => box future::err(e)
+        }
+
+    }
+    fn get_service(&self, id: UUID) -> Result<Arc<server::AsyncServiceClient>, String> {
         let server_id = self.server_mapping_cache
             .lock()
             .entry(id)
             .or_insert_with(||
                 self.registry_client
                     .get(&id)
-                    .unwrap()
-                    .unwrap()
+                    .unwrap_or(Ok(Some(0)))
+                    .unwrap_or(Some(0))
                     .unwrap_or(0))
             .clone();
+        if server_id == 0 {
+            return Err("cannot find server in registry".to_string())
+        }
         // shortcut is enabled in bifrost, no need to check locality
-        // let client =
-        // let server_addr = self.resource_manager.
-        unimplemented!()
+        let client = match {
+            if let Some(member) = self.members.members_guarded().get(&server_id) {
+                DEFAULT_CLIENT_POOL.get(&member.address)
+            } else {
+                return Err("cannot find client".to_string());
+            }
+        } {
+            Ok(c) => c,
+            Err(e) => {
+                let msg = format!("error on read from block manager {:?}", e);
+                error!("{}", &msg);
+                return Err(msg);
+            }
+        };
+        Ok(server::AsyncServiceClient::new(server::DEFAULT_SERVICE_ID, &client))
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub enum ReadLimitBy {
     Size(u64),
     Items(u64)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BlockCursor {
+    id: UUID,
+    pos: u64,
+    limit: ReadLimitBy,
+}
+
+impl BlockCursor {
+    pub fn new(id: UUID, limit: ReadLimitBy) -> BlockCursor {
+        BlockCursor {
+            id, pos: 0, limit
+        }
+    }
 }
