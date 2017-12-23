@@ -7,6 +7,7 @@ pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
 service! {
     rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
     rpc write(id: UUID, items: Vec<Vec<u8>>) -> u64 | String;
+    rpc remove(id: UUID);
 }
 
 pub struct BlockOwnerServer {
@@ -66,6 +67,13 @@ impl Service for BlockOwnerServer {
                 .map_err(|e| format!("{}", e))?
         }
         Ok(owned.size)
+    }
+    fn remove(&self, id: &UUID) -> Result<(), ()> {
+        self.blocks
+            .write()
+            .remove(id)
+            .ok_or(())
+            .map(|b| ())
     }
 }
 

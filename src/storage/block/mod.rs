@@ -87,6 +87,17 @@ impl BlockManager {
         }
 
     }
+    pub fn remove(&self, id: UUID) -> Box<Future<Item = Option<()>, Error = String>> {
+        match self.get_service(id) {
+            Ok(service) => {
+                box service
+                    .remove(&id)
+                    .map_err(|e| format!("{:?}", e))
+                    .map(|r| r.ok())
+            },
+            Err(e) => box future::err(e)
+        }
+    }
     fn get_service(&self, id: UUID) -> Result<Arc<server::AsyncServiceClient>, String> {
         let server_id = self.server_mapping_cache
             .lock()
