@@ -7,7 +7,8 @@ use bifrost::membership::server::Membership;
 use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 
-mod resources;
+pub mod resources;
+pub mod members;
 
 #[derive(Debug)]
 pub enum ServerError {

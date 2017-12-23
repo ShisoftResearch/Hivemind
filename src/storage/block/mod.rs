@@ -10,11 +10,16 @@ use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
 use std::io::{Write, Read};
 use std::sync::Arc;
+
 use bifrost::raft::RaftService;
 use bifrost::raft::client::RaftClient;
+
 use parking_lot::{RwLock, Mutex};
-use utils::uuid::UUID;
 use byteorder::{ByteOrder, LittleEndian};
+
+use utils::uuid::UUID;
+use server::members::LiveMembers;
+
 use storage::block::registry::client::{SMClient as RegClient};
 
 pub mod client;
@@ -23,20 +28,23 @@ mod server;
 
 pub struct BlockManager {
     registry_client: RegClient,
-    server_mapping_cache: Mutex<HashMap<UUID, u64>>
+    server_mapping_cache: Mutex<HashMap<UUID, u64>>,
+    members: Arc<LiveMembers>
 }
 
 impl BlockManager {
     pub fn new(
-        server_id: u64,
+        members: &Arc<LiveMembers>,
         raft: &Arc<RaftService>,
-        client: &Arc<RaftClient>
+        client: &Arc<RaftClient>,
     ) -> Arc<BlockManager> {
         let registry = registry::BlockRegistry::new();
         let manager = BlockManager {
+            members: members.clone(),
             registry_client: RegClient::new(registry::DEFAULT_SERVICE_ID, client),
             server_mapping_cache: Mutex::new(HashMap::new())
         };
+
         raft.register_state_machine(box registry);
         Arc::new(manager)
     }
@@ -53,6 +61,7 @@ impl BlockManager {
             .clone();
         // shortcut is enabled in bifrost, no need to check locality
         // let client =
+        // let server_addr = self.resource_manager.
         unimplemented!()
     }
 }
