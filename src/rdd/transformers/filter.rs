@@ -1,7 +1,7 @@
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG};
 use rdd::transformers::{Registry, REGISTRY};
-use scheduler::dag::partitioner::Partitioner;
+use partitioner::Partitioner;
 use std::any::Any;
 use std::rc::{Rc, Weak};
 

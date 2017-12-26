@@ -1,6 +1,6 @@
 use std::rc::Weak;
 use super::RDD;
-use scheduler::dag::partitioner::Partitioner;
+use partitioner::Partitioner;
 
 pub struct Shuffle {
     pub rdd: Weak<RDD>,

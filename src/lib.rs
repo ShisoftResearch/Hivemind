@@ -29,6 +29,7 @@ pub mod server;
 pub mod scheduler;
 pub mod storage;
 pub mod utils;
+pub mod partitioner;
 
 use parking_lot::Mutex;
 

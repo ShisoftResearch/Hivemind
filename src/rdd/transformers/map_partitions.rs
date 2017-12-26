@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 use rdd::{RDD, RDDTracker, funcs, RDDID, Partition, AnyIter};
 use rdd::funcs::{RDDFunc, RDDFuncResult, REGISTRY as FuncREG, to_any};
 use rdd::transformers::{Registry, REGISTRY};
-use scheduler::dag::partitioner::Partitioner;
+use partitioner::Partitioner;
 
 pub struct MapPartitions {
     closure: Box<Any>,

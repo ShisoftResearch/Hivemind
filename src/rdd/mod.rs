@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::rc::{Rc, Weak};
 use self::funcs::{RDDFunc};
 use super::contexts::JobContext;
-use scheduler::dag::partitioner::Partitioner;
+use partitioner::Partitioner;
 use utils::uuid::{UUID, UNIT_UUID};
 #[macro_use]
 pub mod macros;
