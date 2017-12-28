@@ -1,13 +1,14 @@
 use std::rc::Rc;
 use rdd::{RDDID, RDD};
 use rdd::transformers::REGISTRY;
+use rdd::dependency::DependencyScript;
 
 // only for RDD transport
 #[derive(Serialize, Deserialize)]
 pub struct RDDScript {
     pub rdd_id: RDDID,
     pub ctx: RDDScriptCtx,
-    pub deps: Vec<RDDID>,
+    pub deps: Vec<DependencyScript>,
 }
 
 #[derive(Serialize, Deserialize)]

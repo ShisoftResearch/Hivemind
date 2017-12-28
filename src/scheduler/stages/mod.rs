@@ -12,4 +12,3 @@ pub struct Stage {
 struct Stages {
     stages: Vec<Rc<Stage>>
 }
-

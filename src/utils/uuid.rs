@@ -19,6 +19,9 @@ impl UUID {
             bytes: *(uuid.as_bytes())
         }
     }
+    pub fn unit() -> UUID {
+        UNIT_UUID
+    }
 }
 
 impl fmt::Display for UUID {

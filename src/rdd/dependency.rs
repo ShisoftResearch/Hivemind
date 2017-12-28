@@ -1,5 +1,5 @@
 use std::rc::Weak;
-use super::RDD;
+use super::{RDD, RDDID};
 use partitioner::Partitioner;
 
 pub struct Shuffle {
@@ -69,7 +69,12 @@ impl Range {
 
 
 
-pub enum  Dependency {
+pub enum Dependency {
     Narrow(Box<Narrow>),
     Shuffle(Shuffle)
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum DependencyScript {
+    Narrow(RDDID), Shuffle(RDDID)
 }

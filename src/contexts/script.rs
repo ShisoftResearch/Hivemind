@@ -16,29 +16,34 @@ use rdd::funcs::RDDFunc;
 use rdd::{RDDID, RDDTracker};
 use rdd::script::{RDDScript, RDDScriptCtx};
 use rdd::{transformers as trans};
+use rdd::dependency::DependencyScript;
+use scheduler::dag::StagePlan;
 use bifrost::utils::bincode;
 use super::JobContext;
 
 // only for context transport
 #[derive(Serialize, Deserialize)]
 pub struct ScriptContext {
-    dag: BTreeMap<RDDID, RDDScript>
+    pub dag: BTreeMap<RDDID, RDDScript>,
+    pub stages: BTreeMap<u32, StagePlan>,
+    pub start: RDDID
 }
 
 pub trait RDDComposer: Clone {
     type Item;
+    fn id(&self) -> RDDID;
     fn map<F>(&self, closure: F) -> Map<Self, F>
         where Self: Sized,
               F: RDDFunc<In = (Self::Item, )>
     {
-        Map { comps: self.clone(), func: closure, id: RDDID::rand() }
+        Map { comp: self.clone(), func: closure, id: RDDID::rand() }
     }
 
     fn filter<F>(&self, closure: F) -> Filter<Self, F, Self::Item>
         where Self: Sized,
               F: RDDFunc<In = (Self::Item, )>
     {
-        Filter { comps: self.clone(), func: closure, id: RDDID::rand(), mark: PhantomData }
+        Filter { comp: self.clone(), func: closure, id: RDDID::rand(), mark: PhantomData }
     }
     fn compile(&self, ctx: &mut ScriptContext);
     fn compile_with_closure<F>(
@@ -47,7 +52,7 @@ pub trait RDDComposer: Clone {
         closure: &F,
         trans_id: u64,
         ctx: &mut ScriptContext,
-        deps: Vec<RDDID>,
+        deps: Vec<DependencyScript>,
     )
         where F: RDDFunc
     {
@@ -68,7 +73,7 @@ pub trait RDDComposer: Clone {
 
 #[derive(Clone)]
 pub struct Filter<C, F, I> {
-    comps: C,
+    comp: C,
     func: F,
     id: RDDID,
     mark: PhantomData<I>
@@ -80,20 +85,23 @@ impl <C, F, I> RDDComposer for Filter<C, F, I>
           C: RDDComposer {
     type Item = I;
     fn compile(&self, ctx: &mut ScriptContext) {
-        self.comps.compile(ctx);
+        self.comp.compile(ctx);
         self.compile_with_closure(
             self.id,
             &self.func,
             trans::filter::Filter::trans_id(),
             ctx,
-            vec![self.id]
+            vec![DependencyScript::Narrow(self.comp.id())]
         )
+    }
+    fn id(&self) -> RDDID {
+        self.id
     }
 }
 
 #[derive(Clone)]
 pub struct Map<C, F> {
-    comps: C,
+    comp: C,
     func: F,
     id: RDDID
 }
@@ -103,19 +111,22 @@ impl <C, F> RDDComposer for Map<C, F>
           C: RDDComposer {
     type Item = F::Out;
     fn compile(&self, ctx: &mut ScriptContext) {
-        self.comps.compile(ctx);
+        self.comp.compile(ctx);
         self.compile_with_closure(
             self.id,
             &self.func,
             trans::map::Map::trans_id(),
             ctx,
-            vec![self.id]
-        )
+            vec![DependencyScript::Narrow(self.comp.id())]
+        );
+    }
+    fn id(&self) -> RDDID {
+        self.id
     }
 }
 
 impl ScriptContext {
-    pub fn compile(&self) -> Result<JobContext, String> {
+    pub fn compile_to_job(&self) -> Result<JobContext, String> {
         let mut runtime_ctx = JobContext::new();
         for (id, script) in &self.dag {
             let compiled_scr = script.compile()?;
@@ -123,9 +134,15 @@ impl ScriptContext {
         }
         return Ok(runtime_ctx);
     }
+    pub fn compile_rdd<RDD>(&mut self, rdd: RDD) where RDD: RDDComposer {
+        rdd.compile(self);
+        self.start = rdd.id();
+    }
     pub fn new() -> ScriptContext {
         ScriptContext {
+            start: RDDID::unit(),
             dag: BTreeMap::new(),
+            stages: BTreeMap::new(),
         }
     }
 }
@@ -150,6 +167,9 @@ mod test {
     struct Dummy;
     impl RDDComposer for Dummy {
         fn compile(&self, ctx: &mut ScriptContext) {}
+        fn id(&self) -> RDDID {
+            RDDID::unit()
+        }
         type Item = u64;
     }
 
@@ -166,8 +186,8 @@ mod test {
             .map(APlusB{b: 10})
             .filter(AGreaterThanN{ n: 5 })
             .map(APlusB{b: 5});
-        rdd.compile(&mut context);
+        context.compile_rdd(rdd);
         assert_eq!(context.dag.len(), 3);
-        let job = context.compile().unwrap();
+        let job = context.compile_to_job().unwrap();
     }
 }
