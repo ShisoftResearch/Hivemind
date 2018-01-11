@@ -2,30 +2,58 @@
 // Stages are generated and connected at task manager then distributed to executors for execution
 
 use contexts::script::ScriptContext;
-use rdd::script::RDDScriptCtx;
+use rdd::script::RDDScript;
 use rdd::RDDID;
+use rdd::dependency::DependencyScript;
+
+use std::collections::VecDeque;
 
 #[derive(Serialize, Deserialize)]
-pub struct StagePlan {
-    id: u32,
-    rdds: Vec<RDDID>,
-    deps: Vec<u32>
+pub enum GenerateStagesError {
+    StartRDDNotFound,
+    Unexpected
 }
 
-impl StagePlan {
+#[derive(Serialize, Deserialize)]
+pub struct DAGScheduler {
+    stages: Vec<StageScript>
+}
 
-    fn check_rdd_deps(rdd_script: &RDDScriptCtx, ctx: &mut ScriptContext) {
-        let mut rdd_scr = rdd_script;
-        match rdd_scr {
-            &RDDScriptCtx::Transformer { id, ref data } => {
+// this is going to send to the executors
+#[derive(Serialize, Deserialize)]
+pub struct StageScript {
+    id: u64,
+    rdds: Vec<RDDID>,
+    deps: Vec<u64>
+}
+
+impl DAGScheduler {
+    pub fn compile(ctx: &mut ScriptContext) -> Result<(), GenerateStagesError> {
+        if !ctx.dag.contains_key(&ctx.start) {
+            return Err(GenerateStagesError::StartRDDNotFound)
+        }
+        let mut rdd_scr_opt =
+            ctx.dag.get(&ctx.start);
+        let mut stages: Vec<DAGScheduler> = vec![];
+        let mut current_stage = StageScript {
+            id: 0, rdds: vec![], deps: vec![]
+        };
+        let bfs_queue: VecDeque<RDDID> = VecDeque::new();
+        while let Some(rdd_scr) = rdd_scr_opt  {
+            let all_narrow = rdd_scr.deps
+                .iter()
+                .all(|scr| {
+                    match scr {
+                        &DependencyScript::Narrow(_) => true,
+                        &DependencyScript::Shuffle(_) => false,
+                    }
+                });
+            if all_narrow {
+                // keep current stage, add current rdd id into it and continue bfs
 
             }
         }
-    }
-
-    pub fn compile(ctx: &mut ScriptContext) {
-        let start = ctx.start;
-
+        unimplemented!()
     }
 
 }

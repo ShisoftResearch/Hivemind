@@ -17,7 +17,7 @@ use rdd::{RDDID, RDDTracker};
 use rdd::script::{RDDScript, RDDScriptCtx};
 use rdd::{transformers as trans};
 use rdd::dependency::DependencyScript;
-use scheduler::dag::StagePlan;
+use scheduler::dag::DAGScheduler;
 use bifrost::utils::bincode;
 use super::JobContext;
 
@@ -25,7 +25,7 @@ use super::JobContext;
 #[derive(Serialize, Deserialize)]
 pub struct ScriptContext {
     pub dag: BTreeMap<RDDID, RDDScript>,
-    pub stages: BTreeMap<u32, StagePlan>,
+    pub stages: BTreeMap<u32, DAGScheduler>,
     pub start: RDDID
 }
 

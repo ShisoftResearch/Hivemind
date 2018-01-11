@@ -20,6 +20,7 @@ pub enum RDDScriptCtx {
 }
 
 impl RDDScript {
+    // run on executors
     pub fn compile(&self) -> Result<Rc<RDD>, String> {
         match self.ctx {
             RDDScriptCtx::Transformer {id, ref data} => {
