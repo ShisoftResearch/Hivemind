@@ -3,6 +3,10 @@
 #![feature(box_syntax)]
 #![plugin(bifrost_plugins)]
 
+#![feature(proc_macro, conservative_impl_trait, generators)]
+
+#![feature(box_syntax)]
+
 #[macro_use]
 extern crate log;
 extern crate bifrost_hasher;
@@ -18,18 +22,15 @@ extern crate lazy_static;
 extern crate uuid;
 extern crate parking_lot;
 extern crate typedef;
-extern crate futures;
+extern crate futures_await as futures;
 extern crate futures_cpupool;
 extern crate byteorder;
 
 #[macro_use]
-pub mod rdd;
-pub mod contexts;
 pub mod server;
-pub mod scheduler;
+
 pub mod storage;
 pub mod utils;
-pub mod partitioner;
 
 use parking_lot::Mutex;
 

@@ -1,4 +1,5 @@
 use super::*;
+use futures::prelude::*;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
@@ -11,25 +12,50 @@ service! {
 }
 
 pub struct BlockOwnerServer {
+    inner: Arc<BlockOwnerServerInner>
+}
+
+pub struct BlockOwnerServerInner {
     blocks: RwLock<HashMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>,
     block_store: String
 }
 
 impl Service for BlockOwnerServer {
-    fn read(&self, id: &UUID, pos: &u64, limit: &ReadLimitBy) -> Result<(Vec<Vec<u8>>, u64), String> {
-        let block = self.blocks
+    fn read(&self, id: UUID, pos: u64, limit: ReadLimitBy)
+        -> Box<Future<Item = (Vec<Vec<u8>>, u64), Error = String>>
+    {
+        box future::result(BlockOwnerServerInner::read(self.inner.clone(), id, pos, limit))
+    }
+    fn write(&self, id: UUID, items: Vec<Vec<u8>>)
+        -> Box<Future<Item = u64, Error = String>>
+    {
+
+        box future::result(BlockOwnerServerInner::write(self.inner.clone(), id, items))
+    }
+    fn remove(&self, id: UUID)
+        ->Box<Future<Item = (), Error = ()>>
+    {
+        box future::result(BlockOwnerServerInner::remove(self.inner.clone(), id))
+    }
+}
+
+impl BlockOwnerServerInner {
+    fn read(this: Arc<Self>, id: UUID, pos: u64, limit: ReadLimitBy)
+        -> Result<(Vec<Vec<u8>>, u64), String>
+    {
+        let block = this.blocks
             .read()
-            .get(id)
+            .get(&id)
             .ok_or("NO BLOCK")?
             .clone();
         let owned = block.read();
         let mut res: Vec<Vec<u8>> = Vec::new();
         let mut read_items = 0;
         let mut read_bytes = 0 as usize;
-        let mut cursor = *pos as usize;
+        let mut cursor = pos as usize;
         while match limit {
-            &ReadLimitBy::Size(size) => read_bytes < size as usize,
-            &ReadLimitBy::Items(num) => read_items < num as usize
+            ReadLimitBy::Size(size) => read_bytes < size as usize,
+            ReadLimitBy::Items(num) => read_items < num as usize
         } {
             let mut len_buf = [0u8; 8];
             if owned
@@ -50,15 +76,15 @@ impl Service for BlockOwnerServer {
         }
         return Ok((res, cursor as u64))
     }
-    fn write(&self, id: &UUID, items: &Vec<Vec<u8>>) -> Result<u64, String> {
-        let block = self.blocks
+    fn write(this: Arc<Self>, id: UUID, items: Vec<Vec<u8>>) -> Result<u64, String> {
+        let block = this.blocks
             .write()
-            .entry(*id)
+            .entry(id)
             .or_insert_with(||
                 Arc::new(
                     RwLock::new(
                         LocalOwnedBlock::new(
-                            *id, &self.block_store, BUFFER_CAP))))
+                            id, &this.block_store, BUFFER_CAP))))
             .clone();
         let mut owned = block.write();
         for item in items {
@@ -68,10 +94,10 @@ impl Service for BlockOwnerServer {
         }
         Ok(owned.size)
     }
-    fn remove(&self, id: &UUID) -> Result<(), ()> {
-        self.blocks
+    fn remove(this: Arc<Self>, id: UUID) -> Result<(), ()> {
+        this.blocks
             .write()
-            .remove(id)
+            .remove(&id)
             .ok_or(())
             .map(|b| ())
     }

@@ -1,36 +1,4 @@
 #[macro_export]
-macro_rules! impl_rdd_trans_tracker {
-    ($name: ident ($($carg:ident : $cargt: ty),*) $constructor:block) => {
-        impl RDDTracker for $name {
-            fn trans_id() -> u64 {
-                ident_id!($name)
-            }
-            fn new(args: Box<Any>) -> Result<::std::rc::Rc<RDD>, String> {
-                match args.downcast_ref::<( $($cargt,)* )>() {
-                    Some(args) => {
-                        let &( $(ref $carg,)* ) = args;
-                        $constructor
-                            .map(|rdd| -> ::std::rc::Rc<RDD> { ::std::rc::Rc::new(rdd) })
-                    },
-                    None => {
-                        return Err(format!("Cannot cast type to create rdd: {:?}", args));
-                    }
-                }
-            }
-            fn construct_arg (data: &Vec<u8>) -> Box<::std::any::Any> {
-                let args:( $($cargt,)* ) = ::bifrost::utils::bincode::deserialize(data);
-                return box args
-            }
-            fn register() {
-                REGISTRY.register(
-                    Self::trans_id(), Self::new, Self::construct_arg
-                );
-            }
-        }
-    };
-}
-
-#[macro_export]
 macro_rules! count_args {
     () => {0u64};
     ($_head:tt $($tail:tt)*) => {1u64 + count_args!($($tail)*)};
@@ -44,7 +12,7 @@ macro_rules! ident_id {
 }
 
 #[macro_export]
-macro_rules! def_rdd_func {
+macro_rules! def_remote_func {
     ($($name: ident($($farg:ident : $argt: ty),*)
                    [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
     {

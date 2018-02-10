@@ -5,22 +5,10 @@ use serde::{Serialize, Deserialize};
 use std::any::Any;
 pub use INIT_LOCK;
 
-// RDD functions will compiled at application compile time. The only way to get the the function at
-// runtime by ids is to register it's runtime pointer in the registry.
-
-// Each RDD that have a function will contain only function id in the RDD struct. Actual function
-// pointer will get from the registry. Because the pointer is just a address number and does not
-// carry any useful type meta data, it will be hard to ensure type safety (or even not to do it)
-
-// User also have to register functions manually, because it seems like macro is pure function and
-// it is not likely to introduce side effect and emmit the registry code elsewhere
-
-// Spark like RDD closure may not be possible because manual register require a identifier.
-// To ensure partial safety, it will only check number of parameter for RDD functions
 #[derive(Clone, Copy)]
 pub struct RegistryRDDFunc {
     pub id: u64,
-    pub func: fn(&Box<Any>, &Box<Any>) -> RDDFuncResult,
+    pub func: fn(&Box<Any>, &Box<Any>) -> RemoteFuncResult,
     pub decode: fn(&Vec<u8>) -> Box<Any>,
     pub clone: fn(&Box<Any>) -> Box<Any>,
 }
@@ -37,7 +25,7 @@ impl Registry {
     }
     pub fn register(
         &self, id: u64,
-        func: fn(&Box<Any>, &Box<Any>) -> RDDFuncResult,
+        func: fn(&Box<Any>, &Box<Any>) -> RemoteFuncResult,
         decode: fn(&Vec<u8>) -> Box<Any>, clone: fn(&Box<Any>) -> Box<Any>
     ) -> Result<(), BorrowMutError> {
         let mut m = self.map.try_borrow_mut()?;
@@ -57,16 +45,16 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub enum RDDFuncResult {
+pub enum RemoteFuncResult {
     Ok(Box<Any>),
     Err(String)
 }
 
-impl RDDFuncResult {
+impl RemoteFuncResult {
     pub fn cast<T: 'static>(&self) -> Result<&T, String>
     {
         match self {
-            &RDDFuncResult::Ok(ref data) => {
+            &RemoteFuncResult::Ok(ref data) => {
                 match data.downcast_ref::<T>() {
                     Some(res) => {
                         return Ok(res)
@@ -76,7 +64,7 @@ impl RDDFuncResult {
                     }
                 }
             },
-            &RDDFuncResult::Err(ref e) => {
+            &RemoteFuncResult::Err(ref e) => {
                 return Err(format!("RDD result is error: {}", e))
             }
         }
@@ -84,7 +72,7 @@ impl RDDFuncResult {
     pub fn inner<T: 'static>(self) -> Result<T, String>
     {
         match self {
-            RDDFuncResult::Ok(data) => {
+            RemoteFuncResult::Ok(data) => {
                 match data.downcast::<T>() {
                     Ok(res) => {
                         return Ok(*res)
@@ -94,27 +82,27 @@ impl RDDFuncResult {
                     }
                 }
             },
-            RDDFuncResult::Err(ref e) => {
+            RemoteFuncResult::Err(ref e) => {
                 return Err(format!("RDD result is error: {}", e))
             }
         }
     }
     pub fn unwrap_to_any(self) -> Box<Any> {
         match self {
-            RDDFuncResult::Ok(data) => {
+            RemoteFuncResult::Ok(data) => {
                 data
             },
-            RDDFuncResult::Err(err) => {
+            RemoteFuncResult::Err(err) => {
                 panic!("cannot unwrap rdd func result: {}", err);
             }
         }
     }
 }
 
-pub trait RDDFunc: Serialize + Sized + Clone + 'static {
+pub trait RemoteFunc: Serialize + Sized + Clone + 'static {
     type Out;
     type In;
-    fn call(closure: &Box<Any>, args: &Box<Any>) -> RDDFuncResult;
+    fn call(closure: &Box<Any>, args: &Box<Any>) -> RemoteFuncResult;
     fn id() -> u64;
     fn decode(bytes: &Vec<u8>) -> Box<Any>;
     fn boxed_clone(closure: &Box<Any>) -> Box<Any>;
@@ -141,7 +129,7 @@ mod test {
     use super::*;
     use bifrost::utils::bincode;
 
-    def_rdd_func!(
+    def_remote_func!(
         APlusB (a: u64, b: u64)[] -> u64 {
             a + b
         }
