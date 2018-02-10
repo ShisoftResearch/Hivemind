@@ -28,7 +28,7 @@ extern crate byteorder;
 
 #[macro_use]
 pub mod server;
-
+pub mod actors;
 pub mod storage;
 pub mod utils;
 

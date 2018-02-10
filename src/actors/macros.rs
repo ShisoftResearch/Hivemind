@@ -21,13 +21,13 @@ macro_rules! def_remote_func {
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
-            impl RDDFunc for $name {
+            impl RemoteFunc for $name {
 
                 type Out = $rt;
                 type In = ( $($argt,)* );
 
                 fn call(closure: &Box<::std::any::Any>, args: &Box<::std::any::Any>)
-                    -> RDDFuncResult
+                    -> RemoteFuncResult
                 {
                     match closure.downcast_ref::<Self>() {
                         Some(_closure) => {
@@ -35,15 +35,15 @@ macro_rules! def_remote_func {
                                 Some(args) => {
                                     let &( $(ref $farg,)* ) = args;
                                     let ( $(ref $enclosed,)* ) = ( $(_closure.$enclosed,)* );
-                                    return RDDFuncResult::Ok(Box::new($body as $rt));
+                                    return RemoteFuncResult::Ok(Box::new($body as $rt));
                                 },
                                 None => {
-                                    return RDDFuncResult::Err(format!("Cannot cast type: {:?}", args));
+                                    return RemoteFuncResult::Err(format!("Cannot cast type: {:?}", args));
                                 }
                             }
                         },
                         None => {
-                          return RDDFuncResult::Err(format!("closure is not for the rdd function {:?}", closure));
+                          return RemoteFuncResult::Err(format!("closure is not for the rdd function {:?}", closure));
                         }
                     }
                 }
