@@ -4,7 +4,6 @@
 #![plugin(bifrost_plugins)]
 
 #![feature(proc_macro, conservative_impl_trait, generators)]
-
 #![feature(box_syntax)]
 
 #[macro_use]
@@ -25,6 +24,7 @@ extern crate typedef;
 extern crate futures_await as futures;
 extern crate futures_cpupool;
 extern crate byteorder;
+extern crate libc;
 
 #[macro_use]
 pub mod server;

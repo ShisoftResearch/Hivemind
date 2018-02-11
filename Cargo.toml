@@ -19,6 +19,8 @@ futures-await = "0.1"
 futures-cpupool = "0.1"
 log = "0.3"
 byteorder = "1"
+libc = "*"
+
 
 [lib]
 name = "hivemind"

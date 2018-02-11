@@ -1,10 +1,4 @@
 #[macro_export]
-macro_rules! count_args {
-    () => {0u64};
-    ($_head:tt $($tail:tt)*) => {1u64 + count_args!($($tail)*)};
-}
-
-#[macro_export]
 macro_rules! ident_id {
     ($expr: tt) => {
         ::bifrost_hasher::hash_str(concat!(module_path!(), "::", stringify!($expr)))
@@ -13,56 +7,27 @@ macro_rules! ident_id {
 
 #[macro_export]
 macro_rules! def_remote_func {
-    ($($name: ident($($farg:ident : $argt: ty),*)
-                   [$($enclosed:ident : $ety: ty),*] -> $rt:ty $body:block)*) =>
+    ($($name: ident($($enclosed:ident : $ety: ty),*) -> $rt:ty | $re: ty $body:block)*) =>
     {
         $(
-            #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
+            #[derive(Serialize, Deserialize, Debug, Clone)]
             pub struct $name {
                $(pub $enclosed: $ety),*
             }
             impl RemoteFunc for $name {
 
                 type Out = $rt;
-                type In = ( $($argt,)* );
+                type Err =  $re;
 
-                fn call(closure: &Box<::std::any::Any>, args: &Box<::std::any::Any>)
-                    -> RemoteFuncResult
+                #[async (boxed)]
+                fn call(this: Self)
+                    -> Result<Self::Out, Self::Err>
                 {
-                    match closure.downcast_ref::<Self>() {
-                        Some(_closure) => {
-                             match args.downcast_ref::<( $($argt,)* )>() {
-                                Some(args) => {
-                                    let &( $(ref $farg,)* ) = args;
-                                    let ( $(ref $enclosed,)* ) = ( $(_closure.$enclosed,)* );
-                                    return RemoteFuncResult::Ok(Box::new($body as $rt));
-                                },
-                                None => {
-                                    return RemoteFuncResult::Err(format!("Cannot cast type: {:?}", args));
-                                }
-                            }
-                        },
-                        None => {
-                          return RemoteFuncResult::Err(format!("closure is not for the rdd function {:?}", closure));
-                        }
-                    }
+                    let ( $($enclosed,)* ) = ( $(this.$enclosed,)* );
+                    $body
                 }
                 fn id() -> u64 {
                     ident_id!($name)
-                }
-                fn decode(bytes: &Vec<u8>) -> Box<::std::any::Any>{
-                    let closure: Self = ::bifrost::utils::bincode::deserialize(bytes);
-                    Box::new(closure)
-                }
-                fn boxed_clone(closure: &Box<::std::any::Any>) -> Box<::std::any::Any> {
-                    match closure.downcast_ref::<Self>() {
-                        Some(closure) => {
-                            box closure.clone()
-                        },
-                        None => {
-                            panic!(format!("closure is not for the rdd function {:?}", closure));
-                        }
-                    }
                 }
             }
         )*
