@@ -19,12 +19,11 @@ macro_rules! def_remote_func {
                 type Out = $rt;
                 type Err =  $re;
 
-                #[async (boxed)]
-                fn call(this: Self)
-                    -> Result<Self::Out, Self::Err>
+                fn call(self: Box<Self>)
+                    -> Box<Future<Item = Self::Out, Error = Self::Err>>
                 {
-                    let ( $($enclosed,)* ) = ( $(this.$enclosed,)* );
-                    $body
+                    $(let $enclosed: $ety = self.$enclosed;)*
+                    box async_block!($body)
                 }
                 fn id() -> u64 {
                     ident_id!($name)

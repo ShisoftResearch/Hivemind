@@ -35,5 +35,5 @@ pub mod utils;
 use parking_lot::Mutex;
 
 lazy_static!{
-        pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
+    pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
 }
