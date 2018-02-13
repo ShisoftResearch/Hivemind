@@ -31,10 +31,35 @@ pub mod server;
 pub mod actors;
 pub mod storage;
 pub mod utils;
-pub mod schduler;
+pub mod scheduler;
+pub mod resource;
 
 use parking_lot::Mutex;
+use actors::funcs::RemoteFunc;
+use resource::DataSet;
 
 lazy_static!{
     pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
+}
+
+pub struct Hive {
+
+}
+
+impl Hive {
+
+    pub fn distribute<'a, S, T>(name: &'a str, source: S)
+        -> DataSet<T> where S: IntoIterator<Item = T>
+    {
+        unimplemented!()
+    }
+    pub fn set<'a, V>(name: &'a str, value: V) where V: serde::Serialize {
+        unimplemented!()
+    }
+    pub fn get<'a, V>(name: &'a str) -> Option<V> {
+        unimplemented!()
+    }
+    pub fn run<F>(func: F) where F: RemoteFunc {
+        unimplemented!()
+    }
 }
