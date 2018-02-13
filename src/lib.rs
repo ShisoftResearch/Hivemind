@@ -26,11 +26,12 @@ extern crate futures_cpupool;
 extern crate byteorder;
 extern crate libc;
 
-#[macro_use]
+#[macro_use]    
 pub mod server;
 pub mod actors;
 pub mod storage;
 pub mod utils;
+pub mod schduler;
 
 use parking_lot::Mutex;
 
