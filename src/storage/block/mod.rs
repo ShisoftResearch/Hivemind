@@ -85,7 +85,9 @@ impl BlockManager {
         }
 
     }
-    pub fn remove(&self, server_id: u64, id: UUID) -> Box<Future<Item = Option<()>, Error = String>> {
+    pub fn remove(&self, server_id: u64, id: UUID)
+        -> Box<Future<Item = Option<()>, Error = String>>
+    {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
@@ -96,10 +98,46 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    fn get_service(&self, server_id: u64) -> Result<Arc<AsyncServiceClient>, String> {
-        if server_id == 0 {
-            return Err("cannot find server in registry".to_string())
+    pub fn get(&self, server_id: u64, id: UUID, key: &Vec<u8>)
+        -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
+    {
+        match self.get_service(server_id) {
+            Ok(service) => {
+                box service
+                    .get(&id, key)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+            },
+            Err(e) => box future::err(e)
         }
+    }
+    pub fn set(&self, server_id: u64, id: UUID, key: &Vec<u8>, value: &Vec<u8>)
+               -> Box<Future<Item =  (), Error = String>>
+    {
+        match self.get_service(server_id) {
+            Ok(service) => {
+                box service
+                    .set(&id, key, value)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+            },
+            Err(e) => box future::err(e)
+        }
+    }
+    pub fn unset(&self, server_id: u64, id: UUID, key: &Vec<u8>)
+        -> Box<Future<Item = Option<()>, Error = String>>
+    {
+        match self.get_service(server_id) {
+            Ok(service) => {
+                box service
+                    .unset(&id, key)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+            },
+            Err(e) => box future::err(e)
+        }
+    }
+    fn get_service(&self, server_id: u64) -> Result<Arc<AsyncServiceClient>, String> {
         // shortcut is enabled in bifrost, no need to check locality
         let client = match {
             if let Some(member) = self.members.members_guarded().get(&server_id) {
