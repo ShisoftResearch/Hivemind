@@ -1,5 +1,6 @@
 use super::*;
 use futures::prelude::*;
+use futures_cpupool::CpuPool;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
@@ -12,7 +13,8 @@ service! {
 }
 
 pub struct BlockOwnerServer {
-    inner: Arc<BlockOwnerServerInner>
+    inner: Arc<BlockOwnerServerInner>,
+    pool: CpuPool
 }
 
 pub struct BlockOwnerServerInner {
@@ -20,22 +22,36 @@ pub struct BlockOwnerServerInner {
     block_store: String
 }
 
+impl BlockOwnerServer {
+    fn new(store_path: String) -> Self {
+        BlockOwnerServer {
+            inner: Arc::new(BlockOwnerServerInner {
+                blocks: RwLock::new(HashMap::new()),
+                block_store: store_path,
+            }),
+            pool: CpuPool::new_num_cpus()
+        }
+    }
+}
+
 impl Service for BlockOwnerServer {
     fn read(&self, id: UUID, pos: u64, limit: ReadLimitBy)
         -> Box<Future<Item = (Vec<Vec<u8>>, u64), Error = String>>
     {
-        box future::result(BlockOwnerServerInner::read(self.inner.clone(), id, pos, limit))
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::read(inner, id, pos, limit))
     }
     fn write(&self, id: UUID, items: Vec<Vec<u8>>)
         -> Box<Future<Item = u64, Error = String>>
     {
-
-        box future::result(BlockOwnerServerInner::write(self.inner.clone(), id, items))
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::write(inner, id, items))
     }
     fn remove(&self, id: UUID)
         ->Box<Future<Item = (), Error = ()>>
     {
-        box future::result(BlockOwnerServerInner::remove(self.inner.clone(), id))
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::remove(inner, id))
     }
 }
 
