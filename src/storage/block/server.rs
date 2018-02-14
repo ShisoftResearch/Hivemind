@@ -1,6 +1,7 @@
 use super::*;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
@@ -8,8 +9,12 @@ pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
 
 service! {
     rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
-    rpc write(id: UUID, items: Vec<Vec<u8>>) -> u64 | String;
+    rpc write(id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
     rpc remove(id: UUID);
+
+    rpc get(id: UUID, key: Vec<u8>) -> Option<Vec<u8>> | String;
+    rpc set(id: UUID, key: Vec<u8>, value: Vec<u8>) | String;
+    rpc unset(id: UUID, key: Vec<u8>) -> Option<()> | String;
 }
 
 pub struct BlockOwnerServer {
@@ -42,7 +47,7 @@ impl Service for BlockOwnerServer {
         box self.pool.spawn_fn(move || BlockOwnerServerInner::read(inner, id, pos, limit))
     }
     fn write(&self, id: UUID, items: Vec<Vec<u8>>)
-        -> Box<Future<Item = u64, Error = String>>
+        -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::write(inner, id, items))
@@ -53,62 +58,60 @@ impl Service for BlockOwnerServer {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::remove(inner, id))
     }
+    fn get(&self, id: UUID, key: Vec<u8>)
+        -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
+    {
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::get(inner, id, key))
+    }
+    fn set(&self, id: UUID, key: Vec<u8>, value: Vec<u8>)
+        -> Box<Future<Item = (), Error = String>>
+    {
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::set(inner, id, key, value))
+    }
+    fn unset(&self, id: UUID, key: Vec<u8>)
+        -> Box<Future<Item = Option<()>, Error = String>>
+    {
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::unset(inner, id, key))
+    }
 }
 
 impl BlockOwnerServerInner {
-    fn read(this: Arc<Self>, id: UUID, pos: u64, limit: ReadLimitBy)
-        -> Result<(Vec<Vec<u8>>, u64), String>
+    fn read_block(&self, id: UUID)
+        -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
     {
-        let block = this.blocks
+        Ok(self.blocks
             .read()
             .get(&id)
             .ok_or("NO BLOCK")?
-            .clone();
-        let owned = block.read();
-        let mut res: Vec<Vec<u8>> = Vec::new();
-        let mut read_items = 0;
-        let mut read_bytes = 0 as usize;
-        let mut cursor = pos as usize;
-        while match limit {
-            ReadLimitBy::Size(size) => read_bytes < size as usize,
-            ReadLimitBy::Items(num) => read_items < num as usize
-        } {
-            let mut len_buf = [0u8; 8];
-            if owned
-                .read_data(cursor, &mut len_buf)
-                .map_err(|e| format!("{}", e))? < 1 {
-                break;
-            }
-            let data_len = LittleEndian::read_u64(&len_buf) as usize;
-            cursor += 8;
-            let mut data_vec = vec![0u8; data_len];
-            owned
-                .read_data(cursor, &mut data_vec)
-                .map_err(|e| format!("{}", e))?;
-            res.push(data_vec);
-            cursor += data_len;
-            read_bytes += data_len + 8;
-            read_items += 1;
-        }
-        return Ok((res, cursor as u64))
+            .clone())
     }
-    fn write(this: Arc<Self>, id: UUID, items: Vec<Vec<u8>>) -> Result<u64, String> {
-        let block = this.blocks
+    fn write_block(&self, id: UUID)
+        -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
+    {
+        Ok(self.blocks
             .write()
             .entry(id)
             .or_insert_with(||
                 Arc::new(
                     RwLock::new(
                         LocalOwnedBlock::new(
-                            id, &this.block_store, BUFFER_CAP))))
-            .clone();
+                            id, &self.block_store, BUFFER_CAP))))
+            .clone())
+    }
+    fn read(this: Arc<Self>, id: UUID, pos: u64, limit: ReadLimitBy)
+            -> Result<(Vec<Vec<u8>>, u64), String>
+    {
+        let block_lock = this.read_block(id)?;
+        let block = block_lock.read();
+        block.read(id, pos, limit)
+    }
+    fn write(this: Arc<Self>, id: UUID, items: Vec<Vec<u8>>) -> Result<Vec<u64>, String> {
+        let block = this.write_block(id)?;
         let mut owned = block.write();
-        for item in items {
-            owned
-                .append_data(item.as_slice())
-                .map_err(|e| format!("{}", e))?
-        }
-        Ok(owned.size)
+        owned.write(id, items)
     }
     fn remove(this: Arc<Self>, id: UUID) -> Result<(), ()> {
         this.blocks
@@ -117,10 +120,30 @@ impl BlockOwnerServerInner {
             .ok_or(())
             .map(|b| ())
     }
+    fn get(this: Arc<Self>, id: UUID, key: Vec<u8>) -> Result<Option<Vec<u8>>, String> {
+        let block_lock = this.read_block(id)?;
+        let block = block_lock.read();
+        let pos = block.kv_map
+            .get(&key)
+            .ok_or("NO KEY")?;
+        block.read(id, *pos, ReadLimitBy::Items(1)).map(|d| d.0.into_iter().next())
+    }
+    fn set(this: Arc<Self>, id: UUID, key: Vec<u8>, value: Vec<u8>) -> Result<(), String> {
+        let block_lock = this.write_block(id)?;
+        let mut block = block_lock.write();
+        let loc = block.write(id, vec![value])?[0];
+        block.kv_map.insert(key, loc);
+        Ok(())
+    }
+    // only remove from index
+    fn unset(this: Arc<Self>, id: UUID, key: Vec<u8>) -> Result<Option<()>, String> {
+        let block_lock = this.write_block(id)?;
+        let mut block = block_lock.write();
+        Ok(block.kv_map.remove(&key).map(|_| ()))
+    }
 }
 
 dispatch_rpc_service_functions!(BlockOwnerServer);
-
 
 pub struct LocalOwnedBlock {
     id: UUID,
@@ -128,6 +151,7 @@ pub struct LocalOwnedBlock {
     buffer_pos: u64,
     local_file_buf: Option<BufWriter<File>>,
     local_file_path: String,
+    kv_map: HashMap<Vec<u8>, u64>,
     size: u64
 }
 
@@ -141,6 +165,7 @@ impl LocalOwnedBlock {
             buffer_pos: 0,
             local_file_buf: None,
             local_file_path: file_path,
+            kv_map: HashMap::new(),
             size: 0
         }
     }
@@ -203,6 +228,48 @@ impl LocalOwnedBlock {
         } else {
             Ok(false)
         }
+    }
+
+    fn read (&self, id: UUID, pos: u64, limit: ReadLimitBy) -> Result<(Vec<Vec<u8>>, u64), String> {
+        let mut res: Vec<Vec<u8>> = Vec::new();
+        let mut read_items = 0;
+        let mut read_bytes = 0 as usize;
+        let mut cursor = pos as usize;
+        while match limit {
+            ReadLimitBy::Size(size) => read_bytes < size as usize,
+            ReadLimitBy::Items(num) => read_items < num as usize
+        } {
+            let mut len_buf = [0u8; 8];
+            if self
+                .read_data(cursor, &mut len_buf)
+                .map_err(|e| format!("{}", e))? < 1 {
+                break;
+            }
+            let data_len = LittleEndian::read_u64(&len_buf) as usize;
+            cursor += 8;
+            let mut data_vec = vec![0u8; data_len];
+            self
+                .read_data(cursor, &mut data_vec)
+                .map_err(|e| format!("{}", e))?;
+            res.push(data_vec);
+            cursor += data_len;
+            read_bytes += data_len + 8;
+            read_items += 1;
+        }
+        return Ok((res, cursor as u64))
+    }
+    fn write(&mut self, id: UUID, items: Vec<Vec<u8>>)
+        -> Result<Vec<u64>, String>
+    {
+        let mut poses = Vec::new();
+        for item in items {
+            poses.push(self.buffer.len() as u64);
+            self
+                .append_data(item.as_slice())
+                .map_err(|e| format!("{}", e))?
+        }
+        Ok(poses)
+
     }
 }
 

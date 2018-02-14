@@ -24,7 +24,6 @@ use server::members::LiveMembers;
 
 use storage::block::registry::client::{SMClient as RegClient};
 
-pub mod client;
 pub mod registry;
 mod server;
 
@@ -74,7 +73,7 @@ impl BlockManager {
 
     }
     pub fn write(&self, id: UUID, items: &Vec<Vec<u8>>)
-        -> Box<Future<Item = u64, Error = String>>
+        -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         match self.get_service(id) {
             Ok(service) => {
