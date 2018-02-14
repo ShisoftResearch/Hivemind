@@ -2,20 +2,10 @@ use super::*;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use futures::prelude::*;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
-
-
-service! {
-    rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
-    rpc write(id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
-    rpc remove(id: UUID);
-
-    rpc get(id: UUID, key: Vec<u8>) -> Option<Vec<u8>> | String;
-    rpc set(id: UUID, key: Vec<u8>, value: Vec<u8>) | String;
-    rpc unset(id: UUID, key: Vec<u8>) -> Option<()> | String;
-}
 
 pub struct BlockOwnerServer {
     inner: Arc<BlockOwnerServerInner>,

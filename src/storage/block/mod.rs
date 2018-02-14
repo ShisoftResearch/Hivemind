@@ -9,7 +9,6 @@ use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
 use std::io::{Write, Read};
-use std::sync::Arc;
 
 use bifrost::raft::RaftService;
 use bifrost::raft::client::RaftClient;
@@ -17,42 +16,42 @@ use bifrost::rpc::DEFAULT_CLIENT_POOL;
 
 use parking_lot::{RwLock, Mutex};
 use byteorder::{ByteOrder, LittleEndian};
-use futures::{Future, future};
 
 use utils::uuid::UUID;
 use server::members::LiveMembers;
 
-use storage::block::registry::client::{SMClient as RegClient};
-
-pub mod registry;
 mod server;
 
+service! {
+    rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
+    rpc write(id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
+    rpc remove(id: UUID);
+
+    rpc get(id: UUID, key: Vec<u8>) -> Option<Vec<u8>> | String;
+    rpc set(id: UUID, key: Vec<u8>, value: Vec<u8>) | String;
+    rpc unset(id: UUID, key: Vec<u8>) -> Option<()> | String;
+}
+
 pub struct BlockManager {
-    registry_client: RegClient,
     server_mapping_cache: Mutex<HashMap<UUID, u64>>,
     members: Arc<LiveMembers>
 }
 
 impl BlockManager {
     pub fn new(
-        members: &Arc<LiveMembers>,
-        raft: &Arc<RaftService>,
-        client: &Arc<RaftClient>,
+        members: &Arc<LiveMembers>
     ) -> Arc<BlockManager> {
-        let registry = registry::BlockRegistry::new();
         let manager = BlockManager {
             members: members.clone(),
-            registry_client: RegClient::new(registry::DEFAULT_SERVICE_ID, client),
             server_mapping_cache: Mutex::new(HashMap::new())
         };
 
-        raft.register_state_machine(box registry);
         Arc::new(manager)
     }
-    pub fn read(&self, cursor: BlockCursor)
+    pub fn read(&self, server_id: u64, cursor: BlockCursor)
         -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>
     {
-        match self.get_service(cursor.id) {
+        match self.get_service(server_id) {
             Ok(service) => {
                 box service
                     .read(
@@ -72,10 +71,10 @@ impl BlockManager {
         }
 
     }
-    pub fn write(&self, id: UUID, items: &Vec<Vec<u8>>)
+    pub fn write(&self, server_id: u64, id: UUID, items: &Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
-        match self.get_service(id) {
+        match self.get_service(server_id) {
             Ok(service) => {
                 box service
                     .write(&id, items)
@@ -86,8 +85,8 @@ impl BlockManager {
         }
 
     }
-    pub fn remove(&self, id: UUID) -> Box<Future<Item = Option<()>, Error = String>> {
-        match self.get_service(id) {
+    pub fn remove(&self, server_id: u64, id: UUID) -> Box<Future<Item = Option<()>, Error = String>> {
+        match self.get_service(server_id) {
             Ok(service) => {
                 box service
                     .remove(&id)
@@ -97,17 +96,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    fn get_service(&self, id: UUID) -> Result<Arc<server::AsyncServiceClient>, String> {
-        let server_id = self.server_mapping_cache
-            .lock()
-            .entry(id)
-            .or_insert_with(||
-                self.registry_client
-                    .get(&id)
-                    .unwrap_or(Ok(Some(0)))
-                    .unwrap_or(Some(0))
-                    .unwrap_or(0))
-            .clone();
+    fn get_service(&self, server_id: u64) -> Result<Arc<AsyncServiceClient>, String> {
         if server_id == 0 {
             return Err("cannot find server in registry".to_string())
         }
@@ -126,7 +115,7 @@ impl BlockManager {
                 return Err(msg);
             }
         };
-        Ok(server::AsyncServiceClient::new(server::DEFAULT_SERVICE_ID, &client))
+        Ok(AsyncServiceClient::new(server::DEFAULT_SERVICE_ID, &client))
     }
 }
 
