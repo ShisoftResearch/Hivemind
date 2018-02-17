@@ -37,6 +37,7 @@ pub mod resource;
 use parking_lot::Mutex;
 use actors::funcs::RemoteFunc;
 use resource::DataSet;
+use serde::de::DeserializeOwned;
 
 lazy_static!{
     pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
@@ -49,7 +50,7 @@ pub struct Hive {
 impl Hive {
 
     pub fn distribute<'a, S, T>(name: &'a str, source: S)
-        -> DataSet<T> where S: IntoIterator<Item = T>
+        -> DataSet<T> where S: IntoIterator<Item = T>, T: DeserializeOwned
     {
         unimplemented!()
     }

@@ -163,10 +163,10 @@ pub enum ReadLimitBy {
     Items(u64)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BlockCursor {
+    pub pos: u64,
     id: UUID,
-    pos: u64,
     limit: ReadLimitBy,
 }
 

@@ -1,11 +1,16 @@
-use std::marker::PhantomData;
-use utils::uuid::UUID;
+pub mod block_storage;
 
-pub enum Source <T> {
+use std::marker::PhantomData;
+use resource::block_storage::BlockStorage;
+use serde::de::DeserializeOwned;
+
+pub enum Source<T> where T: DeserializeOwned {
     Local(Box<IntoIterator<Item = T, IntoIter = Iterator<Item = T>>>),
-    Remote(UUID)
+    Block(BlockStorage<T>)
 }
 
-pub struct DataSet <T> {
-    source: Source<T>
+
+
+pub struct DataSet<T> where T: DeserializeOwned {
+    source: Source<T>,
 }
