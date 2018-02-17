@@ -1,4 +1,4 @@
-use storage::block::{BlockManager, BlockCursor};
+use storage::block::{BlockManager, BlockCursor, ReadLimitBy};
 use futures::prelude::*;
 use utils::uuid::UUID;
 use parking_lot::Mutex;
@@ -15,6 +15,19 @@ pub struct BlockStorage<T> where T: DeserializeOwned {
     cursor: BlockCursor,
     fut: Option<BuffFut<T>>,
     buffer: Box<Iterator<Item = T>>
+}
+
+impl <T> BlockStorage<T> where T: DeserializeOwned + 'static {
+    pub fn new(manager: &Arc<BlockManager>, server_id: u64, id: UUID, buff_size: u64) -> BlockStorage<T> {
+        return BlockStorage {
+            server_id,
+            block_id: id,
+            manager: manager.clone(),
+            cursor: BlockCursor::new(id, ReadLimitBy::Items(buff_size)),
+            fut: None,
+            buffer: box vec![].into_iter()
+        }
+    }
 }
 
 impl <T> Stream for BlockStorage<T> where T: DeserializeOwned + 'static {
