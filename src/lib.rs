@@ -55,20 +55,25 @@ pub struct Hive {
 }
 
 impl Hive {
+    /// Distribute data across the cluster and return the local data set for further processing
     pub fn distribute<'a, S, T>(name: &'a str, source: DataSet<T>)
         -> DataSet<T> where T: DeserializeOwned
     {
         unimplemented!()
     }
+    /// Set a value in the data store which visible across the cluster
     pub fn set<'a, V>(name: &'a str, value: V) where V: serde::Serialize {
         unimplemented!()
     }
+    /// Get the value from set function
     pub fn get<'a, V>(name: &'a str) -> Option<V> {
         unimplemented!()
     }
+    /// Run a remote function closure across the whole cluster
     pub fn run<F>(func: F) where F: RemoteFunc {
         unimplemented!()
     }
+    /// Return a DataSet that it's contents from the object provided
     pub fn data_from<II, T, I>(&self, source: II) -> DataSet<T>
         where T: DeserializeOwned,
               I: Iterator<Item = T> + 'static,
@@ -76,11 +81,14 @@ impl Hive {
     {
         DataSet::from(source)
     }
+    /// Return a DataSet that it's contents from local distributed block storage
     pub fn data_from_storage<T>(&self, id: UUID) -> DataSet<T>
         where T: DeserializeOwned + 'static
     {
         DataSet::from_block_storage(&self.block_manager, self.server.server_id, id, STORAGE_BUFFER)
     }
+    /// Return a DataSet that it's contents from remote distributed block storage
+    /// Typically it should be used for aggregate functions
     pub fn data_from_remote_storage<T>(&self, server_id: u64, id: UUID) -> DataSet<T>
         where T: DeserializeOwned + 'static
     {

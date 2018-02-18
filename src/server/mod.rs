@@ -35,6 +35,7 @@ pub struct ServerOptions {
 pub struct HMServer {
     pub rpc: Arc<rpc::Server>,
     pub member_pool: rpc::ClientPool,
+    pub member_service: Arc<MemberService>,
     pub server_id: u64
 }
 
@@ -43,20 +44,21 @@ impl HMServer {
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
     ) -> Result<Arc<HMServer>, ServerError> {
-        HMServer::load_cluster_clients(&opts, &rpc)?;
+        let member_service = HMServer::load_cluster_clients(&opts, &rpc)?;
         Ok(Arc::new(
             HMServer {
                 rpc: rpc.clone(),
                 member_pool: rpc::ClientPool::new(),
+                member_service,
                 server_id: rpc.server_id
             }
         ))
     }
 
-    pub fn join_group(opt: &ServerOptions, raft_client: &Arc<RaftClient>) -> Result<(), ServerError> {
+    fn join_group(opt: &ServerOptions, raft_client: &Arc<RaftClient>) -> Result<Arc<MemberService>, ServerError> {
         let member_service = MemberService::new(&opt.address, raft_client);
         match member_service.join_group(&opt.group_name) {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(member_service),
             Err(e) => {
                 error!("Cannot join cluster group");
                 Err(ServerError::CannotJoinClusterGroup(e))
@@ -66,14 +68,13 @@ impl HMServer {
     fn load_cluster_clients (
         opt: &ServerOptions,
         rpc_server: &Arc<rpc::Server>
-    ) -> Result<(), ServerError> {
+    ) -> Result<Arc<MemberService>, ServerError> {
         let raft_client =
             RaftClient::new(&opt.meta_members, raft::DEFAULT_SERVICE_ID);
         match raft_client {
             Ok(raft_client) => {
                 RaftClient::prepare_subscription(rpc_server);
-                Self::join_group(opt, &raft_client)?;
-                Ok(())
+                Ok(Self::join_group(opt, &raft_client)?)
             },
             Err(e) => {
                 error!("Cannot load meta client: {:?}", e);
