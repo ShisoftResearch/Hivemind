@@ -36,3 +36,11 @@ impl <T> DataSet<T> where T: DeserializeOwned + 'static {
     }
 }
 
+impl <T> Stream for DataSet<T> where T: DeserializeOwned + 'static {
+    type Item = T;
+    type Error = String;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.source.poll()
+    }
+}

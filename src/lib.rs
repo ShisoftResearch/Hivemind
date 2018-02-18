@@ -48,7 +48,6 @@ pub struct Hive {
 }
 
 impl Hive {
-
     pub fn distribute<'a, S, T>(name: &'a str, source: S)
         -> DataSet<T> where S: IntoIterator<Item = T>, T: DeserializeOwned
     {
