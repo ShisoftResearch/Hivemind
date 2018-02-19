@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use parking_lot::{RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub enum InitLiveMembersError {
     CannotGetAllMembers
 }
@@ -17,7 +18,7 @@ pub struct LiveMembers {
 }
 
 impl LiveMembers {
-    pub fn new<'a>(group_name: &'a str, raft_client: &Arc<RaftClient>) -> Result<LiveMembers, InitLiveMembersError> {
+    pub fn new<'a>(group_name: &'a str, raft_client: &Arc<RaftClient>) -> Result<Arc<LiveMembers>, InitLiveMembersError> {
         let observer = ObserverClient::new(raft_client);
         let mut members = HashMap::new();
         match observer.all_members(true) {
@@ -43,9 +44,9 @@ impl LiveMembers {
         let m4 = members.clone();
         observer.on_group_member_offline(
             move |c| remove(c, &m4), group_name);
-        Ok(LiveMembers {
+        Ok(Arc::new(LiveMembers {
             members , observer
-        })
+        }))
     }
     pub fn get_by_id(&self, id: u64) -> Option<Member> {
         self.members.read().get(&id).cloned()

@@ -39,9 +39,13 @@ use parking_lot::Mutex;
 use actors::funcs::RemoteFunc;
 use resource::DataSet;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use storage::block::BlockManager;
 use utils::uuid::UUID;
+use utils::stream::RepeatVec;
 use server::HMServer;
+use futures::{Stream, Future};
+use bifrost::utils::bincode;
 
 const STORAGE_BUFFER: u64 = 10;
 
@@ -56,21 +60,47 @@ pub struct Hive {
 
 impl Hive {
     /// Distribute data across the cluster and return the local data set for further processing
-    pub fn distribute<'a, S, T>(name: &'a str, source: DataSet<T>)
-        -> DataSet<T> where T: DeserializeOwned
+    pub fn distribute<S, T>(&self, source: DataSet<T>)
+        -> Box<Future<Item = DataSet<T>, Error = String>>
+        where T: Serialize + DeserializeOwned + 'static
     {
-        unimplemented!()
+        let members = self.server.live_members.get_members();
+        let member_ids: Vec<_>  = members
+            .iter()
+            .filter(|m| m.online)
+            .map(|m| m.id)
+            .collect();
+        let repeat_members = RepeatVec::new(member_ids)
+            .map_err(|_| String::from(""));
+        let id = UUID::rand();
+        let block_manager = self.block_manager.clone();
+        let block_manager2 = self.block_manager.clone();
+        let this_server_id = self.server.server_id;
+        let distribute_fut = source
+            .map(|item: T| {
+                bincode::serialize(&item)
+            })
+            .chunks(STORAGE_BUFFER as usize)
+            .zip(repeat_members)
+            .map(move |pair: (Vec<Vec<u8>>, u64)|{
+                let (chunk, server_id) = pair;
+                block_manager.write(server_id, id, &chunk)
+            })
+            .buffered(members.len())
+            .for_each(|_| Ok(()));
+        box distribute_fut.map(move |_|
+            DataSet::from_block_storage(&block_manager2, this_server_id, id, STORAGE_BUFFER))
     }
     /// Set a value in the data store which visible across the cluster
-    pub fn set<'a, V>(name: &'a str, value: V) where V: serde::Serialize {
+    pub fn set<'a, V>(&self, name: &'a str, value: V) where V: serde::Serialize {
         unimplemented!()
     }
     /// Get the value from set function
-    pub fn get<'a, V>(name: &'a str) -> Option<V> {
+    pub fn get<'a, V>(&self, name: &'a str) -> Option<V> {
         unimplemented!()
     }
     /// Run a remote function closure across the whole cluster
-    pub fn run<F>(func: F) where F: RemoteFunc {
+    pub fn run<F>(&self, func: F) where F: RemoteFunc {
         unimplemented!()
     }
     /// Return a DataSet that it's contents from the object provided

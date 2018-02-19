@@ -1,11 +1,12 @@
 use bifrost::rpc;
 use bifrost::conshash::ConsistentHashing;
 use bifrost::raft;
-use bifrost::raft::client::RaftClient;
+use bifrost::raft::client::{RaftClient, ClientError as RaftClientError};
 use bifrost::raft::state_machine::{master as sm_master};
 use bifrost::membership::server::Membership;
 use bifrost::membership::member::MemberService;
 use std::sync::Arc;
+use server::members::{LiveMembers, InitLiveMembersError};
 
 pub mod resources;
 pub mod members;
@@ -14,10 +15,10 @@ pub mod members;
 pub enum ServerError {
     CannotJoinCluster,
     CannotJoinClusterGroup(sm_master::ExecError),
-    CannotInitMemberTable,
+    CannotInitLiveMemberTable(InitLiveMembersError),
     CannotSetServerWeight,
     CannotInitConsistentHashTable,
-    CannotLoadMetaClient,
+    CannotLoadMetaClient(RaftClientError),
     CannotInitializeSchemaServer(sm_master::ExecError),
     StandaloneMustAlsoBeMetaServer,
 }
@@ -36,6 +37,7 @@ pub struct HMServer {
     pub rpc: Arc<rpc::Server>,
     pub member_pool: rpc::ClientPool,
     pub member_service: Arc<MemberService>,
+    pub live_members: Arc<LiveMembers>,
     pub server_id: u64
 }
 
@@ -44,12 +46,14 @@ impl HMServer {
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
     ) -> Result<Arc<HMServer>, ServerError> {
-        let member_service = HMServer::load_cluster_clients(&opts, &rpc)?;
+        let (member_service, live_members) =
+            HMServer::load_cluster_clients(&opts, &rpc)?;
         Ok(Arc::new(
             HMServer {
                 rpc: rpc.clone(),
                 member_pool: rpc::ClientPool::new(),
                 member_service,
+                live_members,
                 server_id: rpc.server_id
             }
         ))
@@ -68,18 +72,15 @@ impl HMServer {
     fn load_cluster_clients (
         opt: &ServerOptions,
         rpc_server: &Arc<rpc::Server>
-    ) -> Result<Arc<MemberService>, ServerError> {
+    ) -> Result<(Arc<MemberService>, Arc<LiveMembers>), ServerError> {
         let raft_client =
-            RaftClient::new(&opt.meta_members, raft::DEFAULT_SERVICE_ID);
-        match raft_client {
-            Ok(raft_client) => {
-                RaftClient::prepare_subscription(rpc_server);
-                Ok(Self::join_group(opt, &raft_client)?)
-            },
-            Err(e) => {
-                error!("Cannot load meta client: {:?}", e);
-                Err(ServerError::CannotLoadMetaClient)
-            }
-        }
+            RaftClient::new(&opt.meta_members, raft::DEFAULT_SERVICE_ID)
+                .map_err(|e| ServerError::CannotLoadMetaClient(e))?;
+        let member_service = Self::join_group(opt, &raft_client)?;
+        let live_members =
+            LiveMembers::new(&opt.group_name, &raft_client)
+                .map_err(|e| ServerError::CannotInitLiveMemberTable(e))?;
+        RaftClient::prepare_subscription(rpc_server);
+        Ok((member_service, live_members))
     }
 }
