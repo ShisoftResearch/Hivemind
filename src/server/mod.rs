@@ -7,9 +7,14 @@ use bifrost::membership::server::Membership;
 use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 use server::members::{LiveMembers, InitLiveMembersError};
+use parking_lot::RwLock;
 
 pub mod resources;
 pub mod members;
+
+lazy_static! {
+    static ref DEFAULT: RwLock<Option<Arc<HMServer>>> = RwLock::new(None);
+}
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -48,7 +53,7 @@ impl HMServer {
     ) -> Result<Arc<HMServer>, ServerError> {
         let (member_service, live_members) =
             HMServer::load_cluster_clients(&opts, &rpc)?;
-        Ok(Arc::new(
+        let refer = Arc::new(
             HMServer {
                 rpc: rpc.clone(),
                 member_pool: rpc::ClientPool::new(),
@@ -56,9 +61,15 @@ impl HMServer {
                 live_members,
                 server_id: rpc.server_id
             }
-        ))
+        );
+        let mut def_val = DEFAULT.write();
+        *def_val = Some(refer.clone());
+        Ok(refer)
     }
-
+    pub fn default() -> Arc<HMServer> {
+        let def = DEFAULT.read();
+        return def.clone().unwrap();
+    }
     fn join_group(opt: &ServerOptions, raft_client: &Arc<RaftClient>) -> Result<Arc<MemberService>, ServerError> {
         let member_service = MemberService::new(&opt.address, raft_client);
         match member_service.join_group(&opt.group_name) {

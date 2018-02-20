@@ -9,6 +9,7 @@ use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
 use std::io::{Write, Read};
+use std::cell::RefCell;
 
 use bifrost::raft::RaftService;
 use bifrost::raft::client::RaftClient;
@@ -32,6 +33,10 @@ service! {
     rpc unset(id: UUID, key: Vec<u8>) -> Option<()> | String;
 }
 
+lazy_static! {
+    static ref DEFAULT: RwLock<Option<Arc<BlockManager>>> = RwLock::new(None);
+}
+
 pub struct BlockManager {
     server_mapping_cache: Mutex<HashMap<UUID, u64>>,
     members: Arc<LiveMembers>
@@ -45,8 +50,14 @@ impl BlockManager {
             members: members.clone(),
             server_mapping_cache: Mutex::new(HashMap::new())
         };
-
-        Arc::new(manager)
+        let refer = Arc::new(manager);
+        let mut def_val = DEFAULT.write();
+        *def_val = Some(refer.clone());
+        return refer;
+    }
+    pub fn default() -> Arc<BlockManager> {
+        let def = DEFAULT.read();
+        return def.clone().unwrap();
     }
     pub fn read(&self, server_id: u64, cursor: BlockCursor)
         -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>

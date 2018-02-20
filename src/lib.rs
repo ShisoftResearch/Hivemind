@@ -37,7 +37,7 @@ pub mod resource;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use actors::funcs::RemoteFunc;
-use resource::DataSet;
+use resource::{DataSet, STORAGE_BUFFER};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use storage::block::BlockManager;
@@ -47,13 +47,12 @@ use server::HMServer;
 use futures::{Stream, Future};
 use bifrost::utils::bincode;
 
-const STORAGE_BUFFER: u64 = 10;
-
 lazy_static!{
     pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
 }
 
 pub struct Hive {
+    task_id: UUID,
     block_manager: Arc<BlockManager>,
     server: Arc<HMServer>
 }
@@ -88,8 +87,11 @@ impl Hive {
             })
             .buffered(members.len())
             .for_each(|_| Ok(()));
-        box distribute_fut.map(move |_|
-            DataSet::from_block_storage(&block_manager2, this_server_id, id, STORAGE_BUFFER))
+        box distribute_fut.map(move |_| {
+            let mut dataset = DataSet::from_block_storage(
+                &block_manager2, this_server_id, id, STORAGE_BUFFER);
+            return dataset;
+        })
     }
     /// Set a value in the data store which visible across the cluster
     pub fn set<'a, V>(&self, name: &'a str, value: V) where V: serde::Serialize {
@@ -105,7 +107,7 @@ impl Hive {
     }
     /// Return a DataSet that it's contents from the object provided
     pub fn data_from<II, T, I>(&self, source: II) -> DataSet<T>
-        where T: DeserializeOwned,
+        where T: Serialize + DeserializeOwned,
               I: Iterator<Item = T> + 'static,
               II: IntoIterator<Item = T, IntoIter = I>
     {
@@ -113,14 +115,14 @@ impl Hive {
     }
     /// Return a DataSet that it's contents from local distributed block storage
     pub fn data_from_storage<T>(&self, id: UUID) -> DataSet<T>
-        where T: DeserializeOwned + 'static
+        where T: Serialize + DeserializeOwned + 'static
     {
         DataSet::from_block_storage(&self.block_manager, self.server.server_id, id, STORAGE_BUFFER)
     }
     /// Return a DataSet that it's contents from remote distributed block storage
     /// Typically it should be used for aggregate functions
     pub fn data_from_remote_storage<T>(&self, server_id: u64, id: UUID) -> DataSet<T>
-        where T: DeserializeOwned + 'static
+        where T: Serialize + DeserializeOwned + 'static
     {
         DataSet::from_block_storage(&self.block_manager, server_id, id, STORAGE_BUFFER)
     }
