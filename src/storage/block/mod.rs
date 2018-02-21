@@ -1,7 +1,8 @@
 // Block manager for shuffle and data sharing
-// Blocks will be saved at where it will be needed. It's id will be registered on a raft state machine
+// Blocks will be saved at where it will be needed.
 // When shuffling, the block will be available on other nodes by fetching it from the node that generated it
-// Block is like a blob container without addressing table. It can be appended and read in sequel, lookup is impossible
+// Block is like a blob container without addressing table. It can be appended and read in sequel.
+// Lookup is accomplished by a runtime address map
 // Blocks also support lazy loading and streaming, which means it have a cursor so a request can fetch partial of it.
 
 use std::fs::{File, remove_file};
@@ -11,8 +12,6 @@ use std::collections::HashMap;
 use std::io::{Write, Read};
 use std::cell::RefCell;
 
-use bifrost::raft::RaftService;
-use bifrost::raft::client::RaftClient;
 use bifrost::rpc::DEFAULT_CLIENT_POOL;
 
 use parking_lot::{RwLock, Mutex};

@@ -51,26 +51,26 @@ lazy_static!{
     pub static ref INIT_LOCK: Mutex<()> = Mutex::new(());
 }
 
+/// Hive is a basic unit for each task, it have it's own preassigned server lists, which means the
+/// scheduler can choose which group of the server in the cluster to run the this task with n processors
 pub struct Hive {
     task_id: UUID,
     block_manager: Arc<BlockManager>,
+    members: Vec<u64>,
     server: Arc<HMServer>
 }
 
 impl Hive {
     /// Distribute data across the cluster and return the local data set for further processing
+    /// this function have a scope for each task. All distributed data are only accessible in their hive
     pub fn distribute<S, T>(&self, source: DataSet<T>)
         -> Box<Future<Item = DataSet<T>, Error = String>>
         where T: Serialize + DeserializeOwned + 'static
     {
-        let members = self.server.live_members.get_members();
-        let member_ids: Vec<_>  = members
-            .iter()
-            .filter(|m| m.online)
-            .map(|m| m.id)
-            .collect();
-        let repeat_members = RepeatVec::new(member_ids)
+        let members = self.members.clone();
+        let repeat_members = RepeatVec::new(members)
             .map_err(|_| String::from(""));
+        let num_members = self.members.len();
         let id = UUID::rand();
         let block_manager = self.block_manager.clone();
         let block_manager2 = self.block_manager.clone();
@@ -85,7 +85,7 @@ impl Hive {
                 let (chunk, server_id) = pair;
                 block_manager.write(server_id, id, &chunk)
             })
-            .buffered(members.len())
+            .buffered(num_members)
             .for_each(|_| Ok(()));
         box distribute_fut.map(move |_| {
             let mut dataset = DataSet::from_block_storage(
@@ -94,14 +94,17 @@ impl Hive {
         })
     }
     /// Set a value in the data store which visible across the cluster
+    /// this function have a scope for each task. All set values are only available in their hive
     pub fn set<'a, V>(&self, name: &'a str, value: V) where V: serde::Serialize {
         unimplemented!()
     }
     /// Get the value from set function
+    /// this function have a scope for each task. They can only get the value in their scope
     pub fn get<'a, V>(&self, name: &'a str) -> Option<V> {
         unimplemented!()
     }
-    /// Run a remote function closure across the whole cluster
+    /// Run a remote function closure across the cluster members
+    /// The function closure (func: F) provided must be serializable
     pub fn run<F>(&self, func: F) where F: RemoteFunc {
         unimplemented!()
     }
