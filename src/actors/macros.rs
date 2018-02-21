@@ -7,12 +7,15 @@ macro_rules! ident_id {
 
 #[macro_export]
 macro_rules! def_remote_func {
-    ($($name: ident($($enclosed:ident : $ety: ty),*) -> $rt:ty | $re: ty $body:block)*) =>
+    ($($name: ident($($enclosed:ident : $ety: ty),*) [$($dataset:ident : $dty: ty),*]
+        -> $rt:ty | $re: ty $body:block)*) =>
     {
         $(
-            #[derive(Serialize, Deserialize, Debug, Clone)]
+            #[derive(Serialize, Deserialize)]
             pub struct $name {
-               $(pub $enclosed: $ety),*
+               $(pub $enclosed: $ety,)*
+               $(pub $dataset: $dty ,)*
+
             }
             impl RemoteFunc for $name {
 
@@ -27,6 +30,12 @@ macro_rules! def_remote_func {
                 }
                 fn id() -> u64 {
                     ident_id!($name)
+                }
+                fn get_affinity(&self) -> Vec<u64> {
+                    use $crate::actors::funcs::LocationTraced;
+                    let mut id_set = ::std::collections::HashSet::new();
+                    $(id_set.extend(self.$dataset.get_affinity());)*
+                    return id_set.into_iter().collect();
                 }
             }
         )*

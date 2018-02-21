@@ -57,7 +57,7 @@ lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
 }
 
-pub trait RemoteFunc: Serialize + for <'a> Deserialize<'a> + Sized + Clone + 'static {
+pub trait RemoteFunc: Serialize + for <'a> Deserialize<'a> + Sized + 'static {
 
     type Out;
     type Err;
@@ -78,6 +78,17 @@ pub trait RemoteFunc: Serialize + for <'a> Deserialize<'a> + Sized + Clone + 'st
             Self::decode
         )
     }
+    fn get_affinity(&self) -> Vec<u64>;
+}
+
+pub trait LocationTraced {
+    fn get_affinity(&self) -> Vec<u64>;
+}
+
+impl LocationTraced for Any {
+    fn get_affinity(&self) -> Vec<u64> {
+        vec![]
+    }
 }
 
 pub fn to_any<T>(x: T) -> Box<Any>
@@ -90,6 +101,7 @@ mod test {
     use super::*;
     use bifrost::utils::bincode;
     use futures::prelude::*;
+    use resource::DataSet;
 
     struct DummyFuture;
     impl Future for DummyFuture {
@@ -102,15 +114,18 @@ mod test {
     }
 
     def_remote_func!(
-        APlusB (a: u64, b: u64) -> u64 | () {
+        APlusB (a: u64, b: u64)[] -> u64 | () {
             await!(DummyFuture);
             Ok(self.a + self.b)
         }
-        AMultB (a: u32, b: u32) -> u32 | () {
+        AMultB (a: u32, b: u32)[] -> u32 | () {
             Ok(self.a * self.b)
         }
-        AMultC (a: u32, c: u32) -> u32 | () {
+        AMultC (a: u32, c: u32)[] -> u32 | () {
             Ok(self.a * self.c)
+        }
+        Dum()[a: DataSet<u32>] -> u32 | () {
+            Ok(0)
         }
     );
     fn prepare_registry() {

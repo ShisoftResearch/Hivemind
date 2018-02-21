@@ -68,7 +68,7 @@ impl Hive {
         where T: Serialize + DeserializeOwned + 'static
     {
         let members = self.members.clone();
-        let repeat_members = RepeatVec::new(members)
+        let repeat_members = RepeatVec::new(members.clone())
             .map_err(|_| String::from(""));
         let num_members = self.members.len();
         let id = UUID::rand();
@@ -89,7 +89,9 @@ impl Hive {
             .for_each(|_| Ok(()));
         box distribute_fut.map(move |_| {
             let mut dataset = DataSet::from_block_storage(
-                &block_manager2, this_server_id, id, STORAGE_BUFFER);
+                &block_manager2, this_server_id, id,
+                members,
+                STORAGE_BUFFER);
             return dataset;
         })
     }
@@ -115,18 +117,5 @@ impl Hive {
               II: IntoIterator<Item = T, IntoIter = I>
     {
         DataSet::from(source)
-    }
-    /// Return a DataSet that it's contents from local distributed block storage
-    pub fn data_from_storage<T>(&self, id: UUID) -> DataSet<T>
-        where T: Serialize + DeserializeOwned + 'static
-    {
-        DataSet::from_block_storage(&self.block_manager, self.server.server_id, id, STORAGE_BUFFER)
-    }
-    /// Return a DataSet that it's contents from remote distributed block storage
-    /// Typically it should be used for aggregate functions
-    pub fn data_from_remote_storage<T>(&self, server_id: u64, id: UUID) -> DataSet<T>
-        where T: Serialize + DeserializeOwned + 'static
-    {
-        DataSet::from_block_storage(&self.block_manager, server_id, id, STORAGE_BUFFER)
     }
 }

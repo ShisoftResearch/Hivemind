@@ -69,3 +69,10 @@ impl <T> Stream for BlockStorage<T> where T: DeserializeOwned + 'static {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BlockStorageProperty {
+    pub id: UUID,
+    pub members: Vec<u64>,
+    pub server_id: u64
+}

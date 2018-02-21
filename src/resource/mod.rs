@@ -3,7 +3,7 @@ pub mod block_storage;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::cell::RefCell;use std::borrow::Borrow;
-use resource::block_storage::BlockStorage;
+use resource::block_storage::{BlockStorage, BlockStorageProperty};
 use storage::block::BlockManager;
 use serde::de::{DeserializeOwned};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
@@ -12,18 +12,19 @@ use futures::prelude::*;
 use futures::stream;
 use utils::uuid::UUID;
 use server::HMServer;
+use actors::funcs::LocationTraced;
 
 pub const STORAGE_BUFFER: u64 = 10;
 
 pub enum SourceType {
     Runtime,
-    BlockStorage(UUID)
+    BlockStorage(BlockStorageProperty)
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum SerdeData {
     Runtime(Vec<Vec<u8>>),
-    BlockStorage(UUID)
+    BlockStorage(BlockStorageProperty)
 }
 
 pub struct DataSet<T> where T: Serialize + DeserializeOwned {
@@ -51,10 +52,18 @@ impl <II, T, I> From<II> for DataSet<T>
 }
 
 impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
-    pub fn from_block_storage(manager: &Arc<BlockManager>, server_id: u64, id: UUID, buff_size: u64) -> Self {
+    pub fn from_block_storage(
+        manager: &Arc<BlockManager>,
+        server_id: u64,
+        id: UUID,
+        members: Vec<u64>,
+        buff_size: u64
+    ) -> Self {
         DataSet::new(
             box BlockStorage::new(manager, server_id, id, buff_size),
-            SourceType::BlockStorage(id))
+            SourceType::BlockStorage(BlockStorageProperty {
+                id, members, server_id
+            }))
     }
     fn ser_data(&self) -> SerdeData {
         match self.source_type {
@@ -67,7 +76,7 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
                 }
                 SerdeData::Runtime(vec)
             },
-            SourceType::BlockStorage(id) => SerdeData::BlockStorage(id)
+            SourceType::BlockStorage(ref prop) => SerdeData::BlockStorage(prop.clone())
         }
     }
     fn from_de_data(data: SerdeData) -> DataSet<T> {
@@ -78,11 +87,10 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
                     .map(|item| bincode::deserialize(item))
                     .collect::<Vec<T>>())
             },
-            SerdeData::BlockStorage(id) => {
+            SerdeData::BlockStorage(prop) => {
                 Self::from_block_storage(
                     &BlockManager::default(),
-                    HMServer::default().server_id,
-                    id, STORAGE_BUFFER)
+                    prop.server_id, prop.id, prop.members, STORAGE_BUFFER)
             }
         }
     }
@@ -116,5 +124,16 @@ impl <'de, T> Deserialize<'de> for DataSet<T>
         let de_data = SerdeData::deserialize(deserializer)?;
         Ok(Self::from_de_data(de_data))
 
+    }
+}
+
+impl <T> LocationTraced for DataSet<T>
+    where T: Serialize + DeserializeOwned + 'static
+{
+    fn get_affinity(&self) -> Vec<u64> {
+        match self.source_type {
+            SourceType::BlockStorage(ref prop) => prop.members.clone(),
+            _ => vec![]
+        }
     }
 }
