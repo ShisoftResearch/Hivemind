@@ -8,6 +8,7 @@ use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 use server::members::{LiveMembers, InitLiveMembersError};
 use parking_lot::RwLock;
+use futures::Future;
 
 pub mod resources;
 pub mod members;
@@ -72,7 +73,7 @@ impl HMServer {
     }
     fn join_group(opt: &ServerOptions, raft_client: &Arc<RaftClient>) -> Result<Arc<MemberService>, ServerError> {
         let member_service = MemberService::new(&opt.address, raft_client);
-        match member_service.join_group(&opt.group_name) {
+        match member_service.join_group(&opt.group_name).wait() {
             Ok(_) => Ok(member_service),
             Err(e) => {
                 error!("Cannot join cluster group");

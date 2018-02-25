@@ -30,7 +30,7 @@ impl StateMachineCmds for GlobalStore {
     fn invalidate(&mut self, id: UUID) -> Result<(), GlobalStorageError> {
         self.assert_existed(&id)?;
         self.data.remove(&id);
-        self.callback.notify(&commands::on_invalidation::new(&id), Ok(()));
+        self.callback.notify(commands::on_invalidation::new(&id), Ok(()));
         return Ok(());
     }
 
@@ -110,7 +110,7 @@ impl GlobalStore {
         }
     }
     fn notify_change(&self, id: &UUID, key: Vec<u8>, val: Option<Vec<u8>>) {
-        self.callback.notify(&commands::on_changed::new(id), Ok((key, val)));
+        self.callback.notify(commands::on_changed::new(id), Ok((key, val)));
     }
 }
 

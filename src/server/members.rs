@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use parking_lot::{RwLock, RwLockReadGuard};
+use futures::Future;
 
 #[derive(Debug)]
 pub enum InitLiveMembersError {
@@ -21,7 +22,7 @@ impl LiveMembers {
     pub fn new<'a>(group_name: &'a str, raft_client: &Arc<RaftClient>) -> Result<Arc<LiveMembers>, InitLiveMembersError> {
         let observer = ObserverClient::new(raft_client);
         let mut members = HashMap::new();
-        match observer.all_members(true) {
+        match observer.all_members(true).wait() {
             Ok(Ok((online_members, _))) =>
                 members = online_members
                     .into_iter()

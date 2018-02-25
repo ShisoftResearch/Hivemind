@@ -289,28 +289,28 @@ impl ResourceManager {
         let nr1 = nodes.clone();
         let cb1 = callback.clone();
         membership_cb.internal_subscribe(
-            &on_group_member_offline::new(&group_id),
+            on_group_member_offline::new(&group_id),
             move |changes| {
                 mark_member(false, changes, &nr1, &cb1)
         });
         let nr2 = nodes.clone();
         let cb2 = callback.clone();
         membership_cb.internal_subscribe(
-            &on_group_member_online::new(&group_id),
+            on_group_member_online::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
                 mark_member(true, changes, &nr2, &cb2)
             });
         let nr3 = nodes.clone();
         let cb3 = callback.clone();
         membership_cb.internal_subscribe(
-            &on_group_member_joined::new(&group_id),
+            on_group_member_joined::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
                 mark_member(true, changes, &nr3, &cb3)
             });
         let nr4 = nodes.clone();
         let cb4 = callback.clone();
         membership_cb.internal_subscribe(
-            &on_group_member_left::new(&group_id),
+            on_group_member_left::new(&group_id),
             move |changes: &Result<(ClientMember, u64), ()>| {
                 mark_member(false, changes, &nr4, &cb4)
             });
@@ -318,12 +318,12 @@ impl ResourceManager {
     }
     fn notify_occupation_changes(&self, occ: &Occupation) {
         self.callback.sm_callback.notify(
-            &commands::on_occupation_changed::new(),
+            commands::on_occupation_changed::new(),
             Ok(occ.clone())
         );
         if occ.status == OccupationStatus::Released {
             self.callback.sm_callback.notify(
-                &commands::on_resource_available::new(),
+                commands::on_resource_available::new(),
                 Ok(occ.clone())
             );
         }
@@ -362,7 +362,7 @@ fn mark_member(
             node.online = online;
             let node_for_update = node.clone();
             callback.sm_callback.notify(
-                &commands::on_member_changed::new(), Ok(node_for_update)
+                commands::on_member_changed::new(), Ok(node_for_update)
             );
         }
     }
