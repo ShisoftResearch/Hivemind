@@ -4,6 +4,7 @@
 mod state_machine;
 
 use bifrost::raft::client::RaftClient;
+use bifrost::raft::state_machine::master::ExecError;
 use utils::uuid::UUID;
 use std::collections::{HashMap, BTreeMap};
 use parking_lot::RwLock;
@@ -18,7 +19,7 @@ pub enum GlobalStorageError {
 
 pub struct GlobalManager {
     sm_client: client::SMClient,
-    local_cache: HashMap<Vec<u8>, Vec<u8>>,
+    local_cache: RwLock<BTreeMap<UUID, Arc<HashMap<Vec<u8>, Vec<u8>>>>>,
 }
 
 raft_state_machine! {
@@ -38,20 +39,26 @@ raft_state_machine! {
 
 impl GlobalManager {
     // to use the store, global store raft service must be initialized
-    pub fn new(&self, id: UUID, raft_client: &Arc<RaftClient>) -> GlobalManager {
+    pub fn new(raft_client: &Arc<RaftClient>) -> GlobalManager {
         let sm_client = client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client);
-        let local_cache = match sm_client.dump(&id).wait() {
-            Ok(Ok(map)) => map,
-            Ok(Err(GlobalStorageError::StoreNotExisted)) => {
-                sm_client.create_store(&id).wait().unwrap().unwrap();
+        GlobalManager {
+            sm_client,
+            local_cache: RwLock::new(BTreeMap::new())
+        }
+    }
+
+    pub fn prepare(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
+        let task_cache = match self.sm_client.dump(&id).wait()? {
+            Ok(map) => map,
+            Err(GlobalStorageError::StoreNotExisted) => {
+                self.sm_client.create_store(&id).wait().unwrap().unwrap();
                 HashMap::new()
             },
-            Ok(Err(e)) => panic!("illegal return from global state store {:?}", e),
-            Err(e) => panic!("Cannot check global state store {:?}", e)
+            Err(e) => return Ok(Err(e))
         };
-        GlobalManager {
-            sm_client, local_cache
-        }
+        let mut local_cache = self.local_cache.write();
+        local_cache.insert(id, task_cache);
+        return Ok(Ok(()))
     }
 }
 
