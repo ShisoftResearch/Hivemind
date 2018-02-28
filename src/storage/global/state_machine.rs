@@ -30,7 +30,6 @@ impl StateMachineCmds for GlobalStore {
     fn invalidate(&mut self, id: UUID) -> Result<(), GlobalStorageError> {
         self.assert_existed(&id)?;
         self.data.remove(&id);
-        self.callback.notify(commands::on_invalidation::new(&id), Ok(()));
         return Ok(());
     }
 

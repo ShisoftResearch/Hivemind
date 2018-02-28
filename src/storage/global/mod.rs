@@ -3,10 +3,10 @@
 
 mod state_machine;
 
-use bifrost::raft::client::RaftClient;
+use bifrost::raft::client::{RaftClient, SubscriptionError, SubscriptionReceipt};
 use bifrost::raft::state_machine::master::ExecError;
 use utils::uuid::UUID;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, BTreeMap, HashSet};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use futures::prelude::*;
@@ -15,6 +15,7 @@ use futures::prelude::*;
 pub enum GlobalStorageError {
     StoreNotExisted,
     StoreExisted,
+    SubscriptionError
 }
 
 type LocalCacheRef = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>>>>;
@@ -22,6 +23,8 @@ type LocalCacheRef = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<HashMap<Vec<u8>, Vec<u
 pub struct GlobalManager {
     sm_client: client::SMClient,
     local_cache: LocalCacheRef,
+    sub_receipts: Arc<RwLock<BTreeMap<UUID, SubscriptionReceipt>>>,
+    raft_client: Arc<RaftClient>
 }
 
 raft_state_machine! {
@@ -36,7 +39,6 @@ raft_state_machine! {
     def qry dump(id: UUID) -> HashMap<Vec<u8>, Vec<u8>> | GlobalStorageError;
 
     def sub on_changed(id: UUID) -> (Vec<u8>, Option<Vec<u8>>);
-    def sub on_invalidation(id: UUID);
 }
 
 impl GlobalManager {
@@ -45,11 +47,16 @@ impl GlobalManager {
         let sm_client = client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client);
         GlobalManager {
             sm_client,
-            local_cache: Arc::new(RwLock::new(BTreeMap::new()))
+            local_cache: Arc::new(RwLock::new(BTreeMap::new())),
+            sub_receipts: Arc::new(RwLock::new(BTreeMap::new())),
+            raft_client: raft_client.clone()
         }
     }
-
     pub fn prepare(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
+        let mut local_cache = self.local_cache.write();
+        if local_cache.contains_key(&id) {
+            return Ok(Err(GlobalStorageError::StoreNotExisted))
+        }
         let task_cache = match self.sm_client.dump(&id).wait()? {
             Ok(map) => map,
             Err(GlobalStorageError::StoreNotExisted) => {
@@ -63,17 +70,52 @@ impl GlobalManager {
             },
             Err(e) => return Ok(Err(e))
         };
-        let mut local_cache = self.local_cache.write();
-        local_cache.insert(id, Arc::new(RwLock::new(task_cache)));
+        let task_cache = Arc::new(RwLock::new(task_cache));
+        let task_cache_clone = task_cache.clone();
+        match self.sm_client.on_changed(
+            move |res| {
+                match res {
+                    Ok(pair) => {
+                        let mut cache = task_cache_clone.write();
+                        let (key, value) = pair;
+                        match value {
+                            Some(v) => { cache.insert(key, v); },
+                            None => { cache.remove(&key); }
+                        }
+                    },
+                    Err(_) => {
+                        warn!("unexpected global callback")
+                    }
+                }
+            }, &id
+        ).wait() {
+            Ok(Ok(receipt)) => {
+                let mut sub_map = self.sub_receipts.write();
+                sub_map.insert(id, receipt);
+            },
+            Ok(Err(e)) => {
+                error!("Error on global store event subscription {:?}", e);
+                return Ok(Err(GlobalStorageError::SubscriptionError));
+            },
+            Err(e) => return Err(e)
+        }
+        local_cache.insert(id, task_cache);
         return Ok(Ok(()))
     }
 
     // should be called only once, by the task manager
     pub fn invalidate(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
+        let mut cache = self.local_cache.write();
+        if !cache.contains_key(&id) {
+            return Ok(Err(GlobalStorageError::StoreNotExisted));
+        }
         let res = self.sm_client.invalidate(&id).wait();
         match res {
             Ok(Ok(())) => {
-                let mut cache = self.local_cache.write();
+                match self.sub_receipts.write().remove(&id) {
+                    Some(receipt) => { self.raft_client.unsubscribe(receipt).wait(); },
+                    None => {}
+                }
                 cache.remove(&id);
             },
             _ => {}
