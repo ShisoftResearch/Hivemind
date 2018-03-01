@@ -10,12 +10,14 @@ use std::collections::{HashMap, BTreeMap, HashSet};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use futures::prelude::*;
+use futures::future;
 
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum GlobalStorageError {
     StoreNotExisted,
     StoreExisted,
-    SubscriptionError
+    SubscriptionError,
+    RemoteError
 }
 
 type LocalCacheRef = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>>>>;
@@ -52,7 +54,7 @@ impl GlobalManager {
             raft_client: raft_client.clone()
         }
     }
-    pub fn prepare(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
+    pub fn prepare(&self, id: UUID, watch_changes: bool) -> Result<Result<(), GlobalStorageError>, ExecError> {
         let mut local_cache = self.local_cache.write();
         if local_cache.contains_key(&id) {
             return Ok(Err(GlobalStorageError::StoreNotExisted))
@@ -71,33 +73,35 @@ impl GlobalManager {
             Err(e) => return Ok(Err(e))
         };
         let task_cache = Arc::new(RwLock::new(task_cache));
-        let task_cache_clone = task_cache.clone();
-        match self.sm_client.on_changed(
-            move |res| {
-                match res {
-                    Ok(pair) => {
-                        let mut cache = task_cache_clone.write();
-                        let (key, value) = pair;
-                        match value {
-                            Some(v) => { cache.insert(key, v); },
-                            None => { cache.remove(&key); }
+        if watch_changes {
+            let task_cache_clone = task_cache.clone();
+            match self.sm_client.on_changed(
+                move |res| {
+                    match res {
+                        Ok(pair) => {
+                            let mut cache = task_cache_clone.write();
+                            let (key, value) = pair;
+                            match value {
+                                Some(v) => { cache.insert(key, v); },
+                                None => { cache.remove(&key); }
+                            }
+                        },
+                        Err(_) => {
+                            warn!("unexpected global callback")
                         }
-                    },
-                    Err(_) => {
-                        warn!("unexpected global callback")
                     }
-                }
-            }, &id
-        ).wait() {
-            Ok(Ok(receipt)) => {
-                let mut sub_map = self.sub_receipts.write();
-                sub_map.insert(id, receipt);
-            },
-            Ok(Err(e)) => {
-                error!("Error on global store event subscription {:?}", e);
-                return Ok(Err(GlobalStorageError::SubscriptionError));
-            },
-            Err(e) => return Err(e)
+                }, &id
+            ).wait() {
+                Ok(Ok(receipt)) => {
+                    let mut sub_map = self.sub_receipts.write();
+                    sub_map.insert(id, receipt);
+                },
+                Ok(Err(e)) => {
+                    error!("Error on global store event subscription {:?}", e);
+                    return Ok(Err(GlobalStorageError::SubscriptionError));
+                },
+                Err(e) => return Err(e)
+            }
         }
         local_cache.insert(id, task_cache);
         return Ok(Ok(()))
@@ -160,7 +164,7 @@ impl GlobalManager {
             .map(move |res|
                 res.map(move |old| { Self::update_cache(id, cache_lock, key, value); old }))
     }
-    fn compare_and_swap(&self, id: UUID, key: Vec<u8>, expect: &Option<Vec<u8>>, value: &Option<Vec<u8>>)
+    pub fn compare_and_swap(&self, id: UUID, key: Vec<u8>, expect: &Option<Vec<u8>>, value: &Option<Vec<u8>>)
         -> impl Future<Item = Result<Option<Vec<u8>>, GlobalStorageError>, Error = ExecError>
     {
         let cache_lock = self.local_cache.clone();
@@ -168,18 +172,52 @@ impl GlobalManager {
             .map(move |res|
                 res.map(move |actual| { Self::update_cache(id, cache_lock, key, actual.clone()); actual }))
     }
-    fn get(&self, id: UUID, key: Vec<u8>)
+    pub fn get_task_cache(&self, id: UUID)
+        -> Result<Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>, GlobalStorageError>
+    {
+        let cache = self.local_cache.read();
+        match cache.get(&id) {
+            Some(c) => Ok(c.clone()),
+            None => return Err(GlobalStorageError::StoreNotExisted)
+        }
+    }
+    // if watch_changes is true on prepare, cached value will be very close to
+    // the actual remote value
+    pub fn get_cached(&self, id: UUID, key: &Vec<u8>)
         -> Result<Option<Vec<u8>>, GlobalStorageError>
     {
-        let task_cache_lock = {
-            let cache = self.local_cache.read();
-            match cache.get(&id) {
-                Some(c) => c.clone(),
-                None => return Err(GlobalStorageError::StoreNotExisted)
-            }
-        };
+        let task_cache_lock = self.get_task_cache(id)?;
         let task_cache = task_cache_lock.read();
-        return Ok(task_cache.get(&key).cloned())
+        return Ok(task_cache.get(key).cloned())
+    }
+
+    // get the newest value from global store without consulting cache.
+    // cache is optional to be updated here
+    pub fn get_newest(&self, id: UUID, update_cache: bool, key: Vec<u8>)
+        -> impl Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>
+    {
+        let task_cache_lock_res = self.get_task_cache(id);
+        self.sm_client.get(&id, &key)
+            .map_err(|exec_err| {
+                error!("Error on getting newest from remote {:?}", exec_err);
+                GlobalStorageError::RemoteError
+            })
+            .and_then(move |res| {
+                if update_cache {
+                    let data = res.clone()?;
+                    let task_cache_lock = task_cache_lock_res?;
+                    let mut task_cache = task_cache_lock.write();
+                    match data {
+                        Some(d) => {
+                            task_cache.insert(key, d);
+                        },
+                        None => {
+                            task_cache.remove(&key);
+                        }
+                    }
+                }
+                return res;
+            })
     }
 }
 
