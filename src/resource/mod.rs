@@ -138,3 +138,13 @@ impl <T> LocationTraced for DataSet<T>
         }
     }
 }
+
+pub enum DataSourceType {
+
+}
+
+pub struct Data<T> where T: Serialize + DeserializeOwned {
+    source: Box<Future<Item = T, Error = String>>,
+    pub source_type: DataSourceType
+
+}

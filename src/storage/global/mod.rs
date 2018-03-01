@@ -196,7 +196,7 @@ impl GlobalManager {
     pub fn get_newest(&self, id: UUID, update_cache: bool, key: Vec<u8>)
         -> impl Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>
     {
-        let task_cache_lock_res = self.get_task_cache(id);
+        let cache_ref = self.local_cache.clone();
         self.sm_client.get(&id, &key)
             .map_err(|exec_err| {
                 error!("Error on getting newest from remote {:?}", exec_err);
@@ -205,16 +205,7 @@ impl GlobalManager {
             .and_then(move |res| {
                 if update_cache {
                     let data = res.clone()?;
-                    let task_cache_lock = task_cache_lock_res?;
-                    let mut task_cache = task_cache_lock.write();
-                    match data {
-                        Some(d) => {
-                            task_cache.insert(key, d);
-                        },
-                        None => {
-                            task_cache.remove(&key);
-                        }
-                    }
+                    Self::update_cache(id, cache_ref, key, data);
                 }
                 return res;
             })
