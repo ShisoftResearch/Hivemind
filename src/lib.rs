@@ -97,7 +97,7 @@ impl Hive {
             return dataset;
         })
     }
-    /// Set a value in the data store which visible across the cluster
+    /// Set a global value in the data store which visible across the cluster
     /// this function have a scope for each task. All set values are only available in their hive
     pub fn set_global<K, V>(&self, key: &K, value: &Option<V>)
         -> impl Future<Item = Data<V>, Error = String>
@@ -113,7 +113,7 @@ impl Hive {
                 Data::error_on_none(
                     Data::from_global_storage(&global_storage_mgr, id, key, false)))
     }
-    /// Get the value from set function
+    /// Get the global data from set function
     /// this function have a scope for each task. They can only get the value in their scope
     pub fn get_global<K, V>(&self, key: &K)
         -> Data<Option<V>>
@@ -122,7 +122,7 @@ impl Hive {
         let key = bincode::serialize(key);
         Data::from_global_storage(&self.global_manager, self.task_id, key, false)
     }
-    /// Get the cached value from set function
+    /// Get the cached global data from set function
     /// this function have a scope for each task. They can only get the value in their scope
     pub fn get_global_cached<K, V>(&self, key: &K)
         -> Data<Option<V>>
@@ -131,7 +131,7 @@ impl Hive {
         let key = bincode::serialize(key);
         Data::from_global_storage(&self.global_manager, self.task_id, key, true)
     }
-    /// Get the cached value from set function
+    /// Swap global data
     /// this function have a scope for each task. They can only get the value in their scope
     pub fn swap_global<K, V>(&self, key: &K, value: &Option<V>)
         -> Data<Option<V>>
@@ -145,7 +145,7 @@ impl Hive {
             id, key
         )
     }
-    /// Get the cached value from set function
+    /// Compare and swap global data
     /// this function have a scope for each task. They can only get the value in their scope
     pub fn compare_and_swap_global<K, V>(&self, key: &K, expect: &Option<Vec<V>>, value: &Option<V>)
         -> Data<Option<V>>
