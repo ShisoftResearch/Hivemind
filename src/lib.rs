@@ -37,10 +37,11 @@ pub mod resource;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use actors::funcs::RemoteFunc;
-use resource::{DataSet, STORAGE_BUFFER};
+use resource::{DataSet, Data, STORAGE_BUFFER};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use storage::block::BlockManager;
+use storage::global::GlobalManager;
 use utils::uuid::UUID;
 use utils::stream::RepeatVec;
 use server::HMServer;
@@ -56,6 +57,7 @@ lazy_static!{
 pub struct Hive {
     task_id: UUID,
     block_manager: Arc<BlockManager>,
+    global_manager: Arc<GlobalManager>,
     members: Vec<u64>,
     server: Arc<HMServer>
 }
@@ -64,7 +66,7 @@ impl Hive {
     /// Distribute data across the cluster and return the local data set for further processing
     /// this function have a scope for each task. All distributed data are only accessible in their hive
     pub fn distribute<S, T>(&self, source: DataSet<T>)
-        -> Box<Future<Item = DataSet<T>, Error = String>>
+        -> impl Future<Item = DataSet<T>, Error = String>
         where T: Serialize + DeserializeOwned + 'static
     {
         let members = self.members.clone();
@@ -87,7 +89,7 @@ impl Hive {
             })
             .buffered(num_members)
             .for_each(|_| Ok(()));
-        box distribute_fut.map(move |_| {
+        distribute_fut.map(move |_| {
             let mut dataset = DataSet::from_block_storage(
                 &block_manager2, this_server_id, id,
                 members,
@@ -97,13 +99,28 @@ impl Hive {
     }
     /// Set a value in the data store which visible across the cluster
     /// this function have a scope for each task. All set values are only available in their hive
-    pub fn set<'a, V>(&self, name: &'a str, value: V) where V: serde::Serialize {
-        unimplemented!()
+    pub fn set_global<K, V>(&self, key: &K, value: Option<V>)
+        -> impl Future<Item = Data<V>, Error = String>
+        where V: Serialize + DeserializeOwned + 'static, K: Serialize
+    {
+        let key = bincode::serialize(key);
+        let value = value.map(|v| bincode::serialize(&v));
+        let global_storage_mgr = self.global_manager.clone();
+        let id = self.task_id;
+        self.global_manager.set(id, key.clone(), value)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(move |_|
+                Data::error_on_none(
+                    Data::from_global_storage(&global_storage_mgr, id, key)))
     }
     /// Get the value from set function
     /// this function have a scope for each task. They can only get the value in their scope
-    pub fn get<'a, V>(&self, name: &'a str) -> Option<V> {
-        unimplemented!()
+    pub fn get_global<K, V>(&self, key: &K)
+        -> Data<Option<V>>
+        where V: Serialize + DeserializeOwned + 'static, K: Serialize
+    {
+        let key = bincode::serialize(key);
+        Data::from_global_storage(&self.global_manager, self.task_id, key)
     }
     /// Run a remote function closure across the cluster members
     /// The function closure (func: F) provided must be serializable

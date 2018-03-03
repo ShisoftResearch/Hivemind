@@ -151,7 +151,7 @@ pub enum DataSourceType {
 }
 
 pub struct Data<T> where T: Serialize + DeserializeOwned {
-    source: Box<RefCell<Future<Item = T, Error = String>>>,
+    source: RefCell<Box<Future<Item = T, Error = String>>>,
     pub source_type: DataSourceType
 }
 
@@ -168,23 +168,31 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
               E: ToString
     {
         Data {
-            source: box RefCell::new(f.into_future().map_err(|e| e.to_string())),
+            source: RefCell::new(box f.into_future().map_err(|e| e.to_string())),
             source_type: DataSourceType::Runtime
         }
     }
 
-    pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>) -> Data<T> {
-        Data::from_fut(
-            manager
-            .get_newest(id, true, key)
+    pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>) -> Data<Option<T>> {
+        let fut = manager
+            .get_newest(id, true, key.clone())
             .map_err(|e| format!("{:?}", e))
-            .and_then(|d| {
-                if let Some(d) = d {
-                    Ok(bincode::deserialize(&d))
-                } else {
-                    Err("key does not exists in global storage".to_string())
-                }
-            }))
+            .map(|dopt| dopt.map(|d| bincode::deserialize::<T>(&d)));
+        Data {
+            source: RefCell::new(box fut),
+            source_type: DataSourceType::GlobalStorage(id, key)
+        }
+    }
+
+    pub fn error_on_none(input: Data<Option<T>>) -> Data<T> {
+        let src = input.source.into_inner();
+        return Data {
+            source: RefCell::new(
+                box src.and_then(|opt|
+                    opt.ok_or_else(||
+                        "cannot find data".to_string()))),
+            source_type: input.source_type
+        };
     }
 
     pub fn ser_data(&self) -> SerdeData {
@@ -205,9 +213,10 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
     fn from_de_data(data: SerdeData) -> Data<T> {
         match data {
             SerdeData::Runtime(ref data) =>
-                return Data::from(bincode::deserialize::<T>(data)),
+                Data::from(bincode::deserialize::<T>(data)),
             SerdeData::GlobalStorage(id, key) =>
-                return Data::from_global_storage(&GlobalManager::default(), id, key)
+                Data::error_on_none(
+                    Data::from_global_storage(&GlobalManager::default(), id, key))
         }
     }
 }
