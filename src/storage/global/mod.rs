@@ -171,20 +171,28 @@ impl GlobalManager {
             .map(move |res|
                 res.map(move |_| {Self::update_cache(id, cache_lock, key, value)}))
     }
-    fn swap(&self, id: UUID, key: Vec<u8>, value: Option<Vec<u8>>)
-            -> impl Future<Item = Result<Option<Vec<u8>>, GlobalStorageError>, Error = ExecError>
+    pub fn swap(&self, id: UUID, key: Vec<u8>, value: Option<Vec<u8>>)
+        -> impl Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>
     {
         let cache_lock = self.local_cache.clone();
         self.sm_client.swap(&id, &key, &value)
-            .map(move |res|
+            .map_err(|exec_err| {
+                error!("Error on swap from remote {:?}", exec_err);
+                GlobalStorageError::RemoteError
+            })
+            .and_then(move |res|
                 res.map(move |old| { Self::update_cache(id, cache_lock, key, value); old }))
     }
     pub fn compare_and_swap(&self, id: UUID, key: Vec<u8>, expect: &Option<Vec<u8>>, value: &Option<Vec<u8>>)
-        -> impl Future<Item = Result<Option<Vec<u8>>, GlobalStorageError>, Error = ExecError>
+        -> impl Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>
     {
         let cache_lock = self.local_cache.clone();
         self.sm_client.compare_and_swap(&id, &key, expect, value)
-            .map(move |res|
+            .map_err(|exec_err| {
+                error!("Error on cas from remote {:?}", exec_err);
+                GlobalStorageError::RemoteError
+            })
+            .and_then(move |res|
                 res.map(move |actual| { Self::update_cache(id, cache_lock, key, actual.clone()); actual }))
     }
     pub fn get_task_cache(&self, id: UUID)

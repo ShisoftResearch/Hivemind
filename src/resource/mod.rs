@@ -172,7 +172,20 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
             source_type: DataSourceType::Runtime
         }
     }
-
+    pub fn from_global_storage_future(
+        source_fut: Box<Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>>,
+        id: UUID, key: Vec<u8>
+    )
+        -> Data<Option<T>>
+    {
+        let fut = source_fut
+            .map_err(|e| format!("{:?}", e))
+            .map(|dopt| dopt.map(|d| bincode::deserialize::<T>(&d)));
+        Data {
+            source: RefCell::new(box fut),
+            source_type: DataSourceType::GlobalStorage(id, key)
+        }
+    }
     pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>, cached: bool)
         -> Data<Option<T>>
     {
@@ -182,13 +195,7 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
             } else {
                 box manager.get_newest(id, true, key.clone())
             };
-        let fut = source_fut
-            .map_err(|e| format!("{:?}", e))
-            .map(|dopt| dopt.map(|d| bincode::deserialize::<T>(&d)));
-        Data {
-            source: RefCell::new(box fut),
-            source_type: DataSourceType::GlobalStorage(id, key)
-        }
+        Self::from_global_storage_future(source_fut, id, key)
     }
 
     pub fn error_on_none(input: Data<Option<T>>) -> Data<T> {
@@ -262,4 +269,8 @@ impl <'de, T> Deserialize<'de> for Data<T>
         let de_data = SerdeData::deserialize(deserializer)?;
         Ok(Self::from_de_data(de_data))
     }
+}
+
+pub fn to_optional_binary<T>(bin: &Option<T>) -> Option<Vec<u8>> where T: Serialize {
+    return if let &Some(ref b) = bin { Some(bincode::serialize(b)) } else { None };
 }

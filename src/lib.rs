@@ -37,7 +37,7 @@ pub mod resource;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use actors::funcs::RemoteFunc;
-use resource::{DataSet, Data, STORAGE_BUFFER};
+use resource::{DataSet, Data, STORAGE_BUFFER, to_optional_binary};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use storage::block::BlockManager;
@@ -99,12 +99,12 @@ impl Hive {
     }
     /// Set a value in the data store which visible across the cluster
     /// this function have a scope for each task. All set values are only available in their hive
-    pub fn set_global<K, V>(&self, key: &K, value: Option<V>)
+    pub fn set_global<K, V>(&self, key: &K, value: &Option<V>)
         -> impl Future<Item = Data<V>, Error = String>
         where V: Serialize + DeserializeOwned + 'static, K: Serialize
     {
         let key = bincode::serialize(key);
-        let value = value.map(|v| bincode::serialize(&v));
+        let value = to_optional_binary(value);
         let global_storage_mgr = self.global_manager.clone();
         let id = self.task_id;
         self.global_manager.set(id, key.clone(), value)
@@ -130,6 +130,34 @@ impl Hive {
     {
         let key = bincode::serialize(key);
         Data::from_global_storage(&self.global_manager, self.task_id, key, true)
+    }
+    /// Get the cached value from set function
+    /// this function have a scope for each task. They can only get the value in their scope
+    pub fn swap_global<K, V>(&self, key: &K, value: &Option<V>)
+        -> Data<Option<V>>
+        where V: Serialize + DeserializeOwned + 'static, K: Serialize
+    {
+        let key = bincode::serialize(key);
+        let value = to_optional_binary(value);
+        let id = self.task_id;
+        Data::from_global_storage_future(
+            box self.global_manager.swap(id, key.clone(), value),
+            id, key
+        )
+    }
+    /// Get the cached value from set function
+    /// this function have a scope for each task. They can only get the value in their scope
+    pub fn compare_and_swap_global<K, V>(&self, key: K, expect: &Option<Vec<V>>, value: &Option<V>)
+        -> Data<Option<V>>
+        where V: Serialize + DeserializeOwned + 'static, K: Serialize
+    {
+        let key = bincode::serialize(&key);
+        let expect = to_optional_binary(expect);
+        let value = to_optional_binary(value);
+        let id = self.task_id;
+        Data::from_global_storage_future(
+            box self.global_manager
+                .compare_and_swap(id, key.clone(), &expect, &value), id, key)
     }
     /// Run a remote function closure across the cluster members
     /// The function closure (func: F) provided must be serializable
