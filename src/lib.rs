@@ -111,7 +111,7 @@ impl Hive {
             .map_err(|e| format!("{:?}", e))
             .and_then(move |_|
                 Data::error_on_none(
-                    Data::from_global_storage(&global_storage_mgr, id, key)))
+                    Data::from_global_storage(&global_storage_mgr, id, key, false)))
     }
     /// Get the value from set function
     /// this function have a scope for each task. They can only get the value in their scope
@@ -120,7 +120,16 @@ impl Hive {
         where V: Serialize + DeserializeOwned + 'static, K: Serialize
     {
         let key = bincode::serialize(key);
-        Data::from_global_storage(&self.global_manager, self.task_id, key)
+        Data::from_global_storage(&self.global_manager, self.task_id, key, false)
+    }
+    /// Get the cached value from set function
+    /// this function have a scope for each task. They can only get the value in their scope
+    pub fn get_global_cached<K, V>(&self, key: &K)
+        -> Data<Option<V>>
+        where V: Serialize + DeserializeOwned + 'static, K: Serialize
+    {
+        let key = bincode::serialize(key);
+        Data::from_global_storage(&self.global_manager, self.task_id, key, true)
     }
     /// Run a remote function closure across the cluster members
     /// The function closure (func: F) provided must be serializable

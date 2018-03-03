@@ -173,9 +173,16 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
         }
     }
 
-    pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>) -> Data<Option<T>> {
-        let fut = manager
-            .get_newest(id, true, key.clone())
+    pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>, cached: bool)
+        -> Data<Option<T>>
+    {
+        let source_fut: Box<Future<Item = Option<Vec<u8>>, Error = GlobalStorageError>> =
+            if cached {
+                box manager.get_cached(id, &key).into_future()
+            } else {
+                box manager.get_newest(id, true, key.clone())
+            };
+        let fut = source_fut
             .map_err(|e| format!("{:?}", e))
             .map(|dopt| dopt.map(|d| bincode::deserialize::<T>(&d)));
         Data {
@@ -216,7 +223,7 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
                 Data::from(bincode::deserialize::<T>(data)),
             SerdeData::GlobalStorage(id, key) =>
                 Data::error_on_none(
-                    Data::from_global_storage(&GlobalManager::default(), id, key))
+                    Data::from_global_storage(&GlobalManager::default(), id, key, false))
         }
     }
 }
