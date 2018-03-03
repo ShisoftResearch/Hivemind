@@ -147,11 +147,11 @@ impl Hive {
     }
     /// Get the cached value from set function
     /// this function have a scope for each task. They can only get the value in their scope
-    pub fn compare_and_swap_global<K, V>(&self, key: K, expect: &Option<Vec<V>>, value: &Option<V>)
+    pub fn compare_and_swap_global<K, V>(&self, key: &K, expect: &Option<Vec<V>>, value: &Option<V>)
         -> Data<Option<V>>
         where V: Serialize + DeserializeOwned + 'static, K: Serialize
     {
-        let key = bincode::serialize(&key);
+        let key = bincode::serialize(key);
         let expect = to_optional_binary(expect);
         let value = to_optional_binary(value);
         let id = self.task_id;
