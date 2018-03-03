@@ -22,6 +22,10 @@ pub enum GlobalStorageError {
 
 type LocalCacheRef = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>>>>;
 
+lazy_static! {
+    static ref DEFAULT: RwLock<Option<Arc<GlobalManager>>> = RwLock::new(None);
+}
+
 pub struct GlobalManager {
     sm_client: client::SMClient,
     local_cache: LocalCacheRef,
@@ -45,15 +49,26 @@ raft_state_machine! {
 
 impl GlobalManager {
     // to use the store, global store raft service must be initialized
-    pub fn new(raft_client: &Arc<RaftClient>) -> GlobalManager {
+    pub fn new(raft_client: &Arc<RaftClient>) -> Arc<GlobalManager> {
         let sm_client = client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client);
-        GlobalManager {
+        Arc::new(GlobalManager {
             sm_client,
             local_cache: Arc::new(RwLock::new(BTreeMap::new())),
             sub_receipts: Arc::new(RwLock::new(BTreeMap::new())),
             raft_client: raft_client.clone()
-        }
+        })
     }
+
+    pub fn prepare_default(raft_client: &Arc<RaftClient>) {
+        let mut def = DEFAULT.write();
+        *def = Some(GlobalManager::new(raft_client));
+    }
+
+    pub fn default() -> Arc<GlobalManager> {
+        let lock = DEFAULT.read();
+        return lock.clone().unwrap();
+    }
+
     pub fn prepare(&self, id: UUID, watch_changes: bool) -> Result<Result<(), GlobalStorageError>, ExecError> {
         let mut local_cache = self.local_cache.write();
         if local_cache.contains_key(&id) {
@@ -211,4 +226,3 @@ impl GlobalManager {
             })
     }
 }
-

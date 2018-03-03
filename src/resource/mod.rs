@@ -3,14 +3,16 @@ pub mod global_storage;
 
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::cell::RefCell;use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::borrow::Borrow;
 use resource::block_storage::{BlockStorage, BlockStorageProperty};
+use resource::global_storage::{GlobalManager, GlobalStorageError};
 use storage::block::BlockManager;
 use serde::de::{DeserializeOwned};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use bifrost::utils::bincode;
 use futures::prelude::*;
-use futures::stream;
+use futures::{stream, future};
 use utils::uuid::UUID;
 use server::HMServer;
 use actors::funcs::LocationTraced;
@@ -139,12 +141,109 @@ impl <T> LocationTraced for DataSet<T>
     }
 }
 
-pub enum DataSourceType {
+////////////////////////////////////////
+// Non-iterable data starts from here //
+////////////////////////////////////////
 
+pub enum DataSourceType {
+    Runtime,
+    GlobalStorage(UUID, Vec<u8>)
 }
 
 pub struct Data<T> where T: Serialize + DeserializeOwned {
-    source: Box<Future<Item = T, Error = String>>,
+    source: Box<RefCell<Future<Item = T, Error = String>>>,
     pub source_type: DataSourceType
+}
 
+#[derive(Serialize, Deserialize)]
+pub enum SerdeData {
+    Runtime(Vec<u8>),
+    GlobalStorage(UUID, Vec<u8>)
+}
+
+impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
+    pub fn from_fut<TI, E>(f: TI) -> Self
+        where T: Serialize + DeserializeOwned,
+              TI: IntoFuture<Item = T, Error = E> + 'static,
+              E: ToString
+    {
+        Data {
+            source: box RefCell::new(f.into_future().map_err(|e| e.to_string())),
+            source_type: DataSourceType::Runtime
+        }
+    }
+
+    pub fn from_global_storage(manager: &Arc<GlobalManager>, id: UUID, key: Vec<u8>) -> Data<T> {
+        Data::from_fut(
+            manager
+            .get_newest(id, true, key)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|d| {
+                if let Some(d) = d {
+                    Ok(bincode::deserialize(&d))
+                } else {
+                    Err("key does not exists in global storage".to_string())
+                }
+            }))
+    }
+
+    pub fn ser_data(&self) -> SerdeData {
+        match self.source_type {
+            DataSourceType::Runtime => {
+                let mut source = self.source.borrow_mut();
+                while let Ok(Async::Ready(item)) = source.poll() {
+                    let data = bincode::serialize(&item);
+                    return SerdeData::Runtime(data)
+                }
+                unreachable!()
+            },
+            DataSourceType::GlobalStorage(ref id, ref key) =>
+                SerdeData::GlobalStorage(*id, key.clone())
+        }
+    }
+
+    fn from_de_data(data: SerdeData) -> Data<T> {
+        match data {
+            SerdeData::Runtime(ref data) =>
+                return Data::from(bincode::deserialize::<T>(data)),
+            SerdeData::GlobalStorage(id, key) =>
+                return Data::from_global_storage(&GlobalManager::default(), id, key)
+        }
+    }
+}
+
+impl <T> From <T> for Data<T> where T: Serialize + DeserializeOwned + 'static {
+    fn from(d: T) -> Self {
+        Self::from_fut(Ok::<T, String>(d))
+    }
+}
+
+impl <T> Future for Data<T> where T: Serialize + DeserializeOwned + 'static {
+    type Item = T;
+    type Error = String;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let mut source = self.source.get_mut();
+        source.poll()
+    }
+}
+
+impl <T> Serialize for Data<T> where T: Serialize + DeserializeOwned + 'static {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
+        S: Serializer
+    {
+        let ser_struct = self.ser_data();
+        SerdeData::serialize(&ser_struct, serializer)
+    }
+}
+
+impl <'de, T> Deserialize<'de> for Data<T>
+    where T: Serialize + DeserializeOwned + 'static
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where
+        D: Deserializer<'de>
+    {
+        let de_data = SerdeData::deserialize(deserializer)?;
+        Ok(Self::from_de_data(de_data))
+    }
 }

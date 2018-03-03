@@ -54,8 +54,8 @@ impl StateMachineCmds for GlobalStore {
         let res = {
             let mut store = self.data.get_mut(&id).unwrap();
             match val {
-                Some(ref v) => return Ok(store.insert(key.clone(), v.clone())),
-                None => return Ok(store.remove(&key))
+                Some(ref v) => store.insert(key.clone(), v.clone()),
+                None => store.remove(&key)
             }
         };
         self.notify_change(&id, key, val);
