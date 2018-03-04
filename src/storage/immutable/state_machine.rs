@@ -68,3 +68,11 @@ impl StateMachineCtl for ImmutableStorageRegistry {
     fn snapshot(&self) -> Option<Vec<u8>> { None }
     fn recover(&mut self, data: Vec<u8>) {}
 }
+
+impl ImmutableStorageRegistry {
+    pub fn new() -> ImmutableStorageRegistry {
+        ImmutableStorageRegistry {
+            registry: BTreeMap::new()
+        }
+    }
+}
