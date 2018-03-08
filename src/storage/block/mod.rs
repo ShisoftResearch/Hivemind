@@ -27,9 +27,9 @@ service! {
     rpc write(id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
     rpc remove(id: UUID);
 
-    rpc get(id: UUID, key: Vec<u8>) -> Option<Vec<u8>> | String;
-    rpc set(id: UUID, key: Vec<u8>, value: Vec<u8>) | String;
-    rpc unset(id: UUID, key: Vec<u8>) -> Option<()> | String;
+    rpc get(id: UUID, key: UUID) -> Option<Vec<u8>> | String;
+    rpc set(id: UUID, key: UUID, value: Vec<u8>) | String;
+    rpc unset(id: UUID, key: UUID) -> Option<()> | String;
 }
 
 lazy_static! {
@@ -108,7 +108,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn get(&self, server_id: u64, id: UUID, key: &Vec<u8>)
+    pub fn get(&self, server_id: u64, id: UUID, key: &UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         match self.get_service(server_id) {
@@ -121,7 +121,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn set(&self, server_id: u64, id: UUID, key: &Vec<u8>, value: &Vec<u8>)
+    pub fn set(&self, server_id: u64, id: UUID, key: &UUID, value: &Vec<u8>)
                -> Box<Future<Item =  (), Error = String>>
     {
         match self.get_service(server_id) {
@@ -134,13 +134,13 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn unset(&self, server_id: u64, id: UUID, key: &Vec<u8>)
+    pub fn unset(&self, server_id: u64, id: &UUID, key: &UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .unset(&id, key)
+                    .unset(id, key)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },

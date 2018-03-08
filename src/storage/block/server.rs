@@ -48,19 +48,19 @@ impl Service for BlockOwnerServer {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::remove(inner, id))
     }
-    fn get(&self, id: UUID, key: Vec<u8>)
+    fn get(&self, id: UUID, key: UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::get(inner, id, key))
     }
-    fn set(&self, id: UUID, key: Vec<u8>, value: Vec<u8>)
+    fn set(&self, id: UUID, key: UUID, value: Vec<u8>)
         -> Box<Future<Item = (), Error = String>>
     {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::set(inner, id, key, value))
     }
-    fn unset(&self, id: UUID, key: Vec<u8>)
+    fn unset(&self, id: UUID, key: UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         let inner = self.inner.clone();
@@ -110,7 +110,7 @@ impl BlockOwnerServerInner {
             .ok_or(())
             .map(|b| ())
     }
-    fn get(this: Arc<Self>, id: UUID, key: Vec<u8>) -> Result<Option<Vec<u8>>, String> {
+    fn get(this: Arc<Self>, id: UUID, key: UUID) -> Result<Option<Vec<u8>>, String> {
         let block_lock = this.read_block(id)?;
         let block = block_lock.read();
         let pos = block.kv_map
@@ -118,7 +118,7 @@ impl BlockOwnerServerInner {
             .ok_or("NO KEY")?;
         block.read(id, *pos, ReadLimitBy::Items(1)).map(|d| d.0.into_iter().next())
     }
-    fn set(this: Arc<Self>, id: UUID, key: Vec<u8>, value: Vec<u8>) -> Result<(), String> {
+    fn set(this: Arc<Self>, id: UUID, key: UUID, value: Vec<u8>) -> Result<(), String> {
         let block_lock = this.write_block(id)?;
         let mut block = block_lock.write();
         let loc = block.write(id, vec![value])?[0];
@@ -126,7 +126,7 @@ impl BlockOwnerServerInner {
         Ok(())
     }
     // only remove from index
-    fn unset(this: Arc<Self>, id: UUID, key: Vec<u8>) -> Result<Option<()>, String> {
+    fn unset(this: Arc<Self>, id: UUID, key: UUID) -> Result<Option<()>, String> {
         let block_lock = this.write_block(id)?;
         let mut block = block_lock.write();
         Ok(block.kv_map.remove(&key).map(|_| ()))
@@ -141,7 +141,7 @@ pub struct LocalOwnedBlock {
     buffer_pos: u64,
     local_file_buf: Option<BufWriter<File>>,
     local_file_path: String,
-    kv_map: HashMap<Vec<u8>, u64>,
+    kv_map: HashMap<UUID, u64>,
     size: u64
 }
 
