@@ -68,23 +68,23 @@ impl ImmutableManager {
         unimplemented!()
     }
 
-    pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = (), Error = Option<String>> {
+    pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = Option<()>, Error = String> {
         let reg_client = self.registry_client.clone();
         let server_id = self.server_id;
         self.local_owned_blocks
             .read_async()
-            .map_err(|_| Some("unexpected".to_string()))
+            .map_err(|_| "unexpected".to_string())
             .and_then(move |tasks| {
                 tasks.get(&task_id)
                     .map(|owned| owned.clone())
-                    .ok_or_else(|| Some("task not found".to_string()))
+                    .ok_or_else(|| "task not found".to_string())
             })
             .and_then(move |local_owned_lock| {
                 async_block! {
                     {
                         let owned = await!(local_owned_lock.read_async()).unwrap();
                         if owned.contains(&key) {
-                            return Err(None)
+                            return Ok(None)
                         }
                     }
                     {
@@ -93,10 +93,10 @@ impl ImmutableManager {
                     }
                     {
                         await!(reg_client.set_location(&task_id, &key, &server_id)
-                            .map_err(|e| Some(format!("Registry exec error {:?}", e)))
-                            .and_then(|r| r.map_err(|e| Some(format!("Registry error {:?}", e)))))?
+                            .map_err(|e| format!("Registry exec error {:?}", e))
+                            .and_then(|r| r.map_err(|e| format!("Registry error {:?}", e))))?
                     }
-                    return Ok(())
+                    return Ok(Some(()))
                 }
             })
     }
