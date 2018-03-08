@@ -43,40 +43,39 @@ impl ImmutableManager {
     }
 
 
-    pub fn write(&self, id: UUID, items: &Vec<Vec<u8>>)
+    pub fn write(&self, task: UUID, id: UUID, items: &Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
-//        let local_owned_lock = self.local_owned_blocks.clone();
-//        let ensure_registed = ;
+        //self.ensure_registed(task, id)
         unimplemented!()
     }
 
-    pub fn remove(&self, id: UUID)
+    pub fn remove(&self, task: UUID, id: UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         unimplemented!()
     }
 
-    pub fn get(&self, id: UUID, key: &Vec<u8>)
+    pub fn get(&self, task: UUID, key: &UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         unimplemented!()
     }
 
-    pub fn set(&self, id: UUID, key: &Vec<u8>, value: &Vec<u8>)
+    pub fn set(&self, task: UUID, key: &Vec<u8>, value: &UUID)
         -> Box<Future<Item =  (), Error = String>>
     {
         unimplemented!()
     }
 
-    pub fn ensure_registed(&self, id: UUID, key: UUID) -> impl Future<Item = (), Error = Option<String>> {
+    pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = (), Error = Option<String>> {
         let reg_client = self.registry_client.clone();
         let server_id = self.server_id;
         self.local_owned_blocks
             .read_async()
             .map_err(|_| Some("unexpected".to_string()))
             .and_then(move |tasks| {
-                tasks.get(&id)
+                tasks.get(&task_id)
                     .map(|owned| owned.clone())
                     .ok_or_else(|| Some("task not found".to_string()))
             })
@@ -93,7 +92,7 @@ impl ImmutableManager {
                         owned.insert(key);
                     }
                     {
-                        await!(reg_client.set_location(&id, &key, &server_id)
+                        await!(reg_client.set_location(&task_id, &key, &server_id)
                             .map_err(|e| Some(format!("Registry exec error {:?}", e)))
                             .and_then(|r| r.map_err(|e| Some(format!("Registry error {:?}", e)))))?
                     }
