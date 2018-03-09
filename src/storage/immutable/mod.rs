@@ -9,17 +9,19 @@ use bifrost::raft::state_machine::master::ExecError;
 use utils::uuid::UUID;
 use futures::prelude::*;
 
+type LocalOwnedBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<BTreeSet<UUID>>>>>>;
+
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum ImmutableStorageRegistryError {
     RegistryNotExisted,
     RegistryExisted,
-    ItemExisted
+    ItemNotExisted
 }
 
 pub struct ImmutableManager {
     block_manager: Arc<BlockManager>,
     registry_client: Arc<state_machine::client::SMClient>,
-    local_owned_blocks: Arc<RwLock<BTreeMap<UUID, Arc<RwLock<BTreeSet<UUID>>>>>>,
+    local_owned_blocks: LocalOwnedBlocks,
     server_id: u64
 }
 
@@ -53,9 +55,38 @@ impl ImmutableManager {
     }
 
     pub fn get(&self, task: UUID, key: UUID)
-        -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
+        -> impl Future<Item = Option<Vec<u8>>, Error = String>
     {
-        unimplemented!()
+        let block_manager = self.block_manager.clone();
+        let reg_client = self.registry_client.clone();
+        let server_id = self.server_id;
+        let local_owned_blocks = self.local_owned_blocks.clone();
+        let reg_client = self.registry_client.clone();
+        async_block! {
+            let local_cache = await!(block_manager.get(server_id, &task, &task, &key))?;
+            if local_cache.is_some() {
+                return Ok(local_cache);
+            } else {
+                let servers = await!(reg_client.get_location(&task, &key))
+                    .map_err(|e| format!("Registry exec error {:?}", e))
+                    .and_then(|r| r.map_err(|e| format!("Get server locations from registry error {:?}", e)))?;
+                match servers {
+                    Some(server_ids) => {
+                        for server_id in server_ids {
+                            if let Ok(remote) = await!(block_manager.get(server_id, &task, &task, &key)) {
+                                if let Some(remote_value) = remote {
+                                    await!(block_manager.set(server_id, &task, &task, &key, &remote_value))?;
+                                    await!(ensure_registed(reg_client, local_owned_blocks, server_id, task, key))?;
+                                    return Ok(Some(remote_value));
+                                }
+                            }
+                        }
+                    },
+                    None => {}
+                }
+                return Ok(None);
+            }
+        }
     }
 
     pub fn set(&self, task: UUID, key: UUID, value: Vec<u8>)
@@ -70,16 +101,25 @@ impl ImmutableManager {
     pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = Option<()>, Error = String> {
         let reg_client = self.registry_client.clone();
         let server_id = self.server_id;
-        self.local_owned_blocks
-            .read_async()
-            .map_err(|_| "unexpected".to_string())
-            .and_then(move |tasks| {
-                tasks.get(&task_id)
-                    .map(|owned| owned.clone())
-                    .ok_or_else(|| "task not found".to_string())
-            })
-            .and_then(move |local_owned_lock| {
-                async_block! {
+        ensure_registed(reg_client, self.local_owned_blocks.clone(), server_id, task_id, key)
+    }
+}
+
+pub fn ensure_registed(
+    reg_client: Arc<state_machine::client::SMClient>,
+    local_owned_blocks: LocalOwnedBlocks,
+    server_id: u64, task_id: UUID, key: UUID
+) -> impl Future<Item = Option<()>, Error = String> {
+    local_owned_blocks
+        .read_async()
+        .map_err(|_| "unexpected".to_string())
+        .and_then(move |tasks| {
+            tasks.get(&task_id)
+                .map(|owned| owned.clone())
+                .ok_or_else(|| "task not found".to_string())
+        })
+        .and_then(move |local_owned_lock| {
+            async_block! {
                     {
                         let owned = await!(local_owned_lock.read_async()).unwrap();
                         if owned.contains(&key) {
@@ -97,6 +137,5 @@ impl ImmutableManager {
                     }
                     return Ok(Some(()))
                 }
-            })
-    }
+        })
 }
