@@ -72,8 +72,8 @@ impl ImmutableManager {
                     .and_then(|r| r.map_err(|e| format!("Get server locations from registry error {:?}", e)))?;
                 match servers {
                     Some(server_ids) => {
-                        for server_id in server_ids {
-                            if let Ok(remote) = await!(block_manager.get(server_id, &task, &task, &key)) {
+                        for remote_server_id in server_ids {
+                            if let Ok(remote) = await!(block_manager.get(remote_server_id, &task, &task, &key)) {
                                 if let Some(remote_value) = remote {
                                     await!(block_manager.set(server_id, &task, &task, &key, &remote_value))?;
                                     await!(ensure_registed(reg_client, local_owned_blocks, server_id, task, key))?;
