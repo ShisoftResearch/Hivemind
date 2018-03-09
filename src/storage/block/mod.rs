@@ -25,11 +25,13 @@ mod server;
 service! {
     rpc read(task: UUID, id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
     rpc write(task: UUID, id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
-    rpc remove(task: UUID, id: UUID);
+    rpc remove(task: UUID, id: UUID) | String;
 
-    rpc get(id: UUID, key: UUID) -> Option<Vec<u8>> | String;
-    rpc set(id: UUID, key: UUID, value: Vec<u8>) | String;
-    rpc unset(id: UUID, key: UUID) -> Option<()> | String;
+    rpc get(task: UUID, id: UUID, key: UUID) -> Option<Vec<u8>> | String;
+    rpc set(task: UUID, id: UUID, key: UUID, value: Vec<u8>) | String;
+    rpc unset(task: UUID, id: UUID, key: UUID) -> Option<()> | String;
+
+    rpc remove_task(task: UUID) | String;
 }
 
 lazy_static! {
@@ -109,39 +111,39 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn get(&self, server_id: u64, id: &UUID, key: &UUID)
+    pub fn get(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .get(id, key)
+                    .get(task, id, key)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },
             Err(e) => box future::err(e)
         }
     }
-    pub fn set(&self, server_id: u64, id: &UUID, key: &UUID, value: &Vec<u8>)
+    pub fn set(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID, value: &Vec<u8>)
                -> Box<Future<Item =  (), Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .set(id, key, value)
+                    .set(task, id, key, value)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },
             Err(e) => box future::err(e)
         }
     }
-    pub fn unset(&self, server_id: u64, id: &UUID, key: &UUID)
+    pub fn unset(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .unset(id, key)
+                    .unset(task, id, key)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },

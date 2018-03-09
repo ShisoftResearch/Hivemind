@@ -1,10 +1,12 @@
 use super::*;
+use std::collections::BTreeMap;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use futures::prelude::*;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
+type TaskBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>>;
 pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
 
 pub struct BlockOwnerServer {
@@ -13,7 +15,7 @@ pub struct BlockOwnerServer {
 }
 
 pub struct BlockOwnerServerInner {
-    blocks: RwLock<HashMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>,
+    blocks: RwLock<BTreeMap<UUID, TaskBlocks>>,
     block_store: String
 }
 
@@ -21,7 +23,7 @@ impl BlockOwnerServer {
     fn new(store_path: String) -> Self {
         BlockOwnerServer {
             inner: Arc::new(BlockOwnerServerInner {
-                blocks: RwLock::new(HashMap::new()),
+                blocks: RwLock::new(BTreeMap::new()),
                 block_store: store_path,
             }),
             pool: CpuPool::new_num_cpus()
@@ -34,54 +36,74 @@ impl Service for BlockOwnerServer {
         -> Box<Future<Item = (Vec<Vec<u8>>, u64), Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::read(inner, id, pos, limit))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::read(inner, task, id, pos, limit))
     }
     fn write(&self, task: UUID, id: UUID, items: Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::write(inner, id, items))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::write(inner, task, id, items))
     }
     fn remove(&self, task: UUID, id: UUID)
-        ->Box<Future<Item = (), Error = ()>>
+        ->Box<Future<Item = (), Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::remove(inner, id))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::remove(inner, task, id))
     }
-    fn get(&self, id: UUID, key: UUID)
+    fn get(&self, task: UUID, id: UUID, key: UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::get(inner, id, key))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::get(inner, task, id, key))
     }
-    fn set(&self, id: UUID, key: UUID, value: Vec<u8>)
+    fn set(&self, task: UUID, id: UUID, key: UUID, value: Vec<u8>)
         -> Box<Future<Item = (), Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::set(inner, id, key, value))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::set(inner, task, id, key, value))
     }
-    fn unset(&self, id: UUID, key: UUID)
+    fn unset(&self, task: UUID, id: UUID, key: UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         let inner = self.inner.clone();
-        box self.pool.spawn_fn(move || BlockOwnerServerInner::unset(inner, id, key))
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::unset(inner, task, id, key))
+    }
+    fn remove_task(&self, task: UUID)
+        -> Box<Future<Item = (), Error = String>>
+    {
+        let inner = self.inner.clone();
+        box self.pool.spawn_fn(move || BlockOwnerServerInner::remove_task(inner, task))
     }
 }
 
 impl BlockOwnerServerInner {
-    fn read_block(&self, id: UUID)
-        -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
-    {
+    fn task_blocks(&self, task: &UUID) -> Result<TaskBlocks, String> {
         Ok(self.blocks
             .read()
-            .get(&id)
-            .ok_or("NO BLOCK")?
+            .get(task)
+            .ok_or("NO TASK")?
             .clone())
     }
-    fn write_block(&self, id: UUID)
+    fn read_block(&self, task: &UUID, id: &UUID)
         -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
     {
-        Ok(self.blocks
+        let task_blocks = self.task_blocks(task)?;
+        let block = task_blocks
+            .read()
+            .get(id)
+            .ok_or("NO BLOCK")?
+            .clone();
+        Ok(block)
+    }
+    fn write_block(&self, task: UUID, id: UUID)
+        -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
+    {
+        let task_blocks = self.blocks
+            .write()
+            .entry(task)
+            .or_insert_with(|| Arc::new(RwLock::new(BTreeMap::new())))
+            .clone();
+        let block = task_blocks
             .write()
             .entry(id)
             .or_insert_with(||
@@ -89,47 +111,54 @@ impl BlockOwnerServerInner {
                     RwLock::new(
                         LocalOwnedBlock::new(
                             id, &self.block_store, BUFFER_CAP))))
-            .clone())
+            .clone();
+        Ok(block)
     }
-    fn read(this: Arc<Self>, id: UUID, pos: u64, limit: ReadLimitBy)
+    fn read(this: Arc<Self>, task: UUID, id: UUID, pos: u64, limit: ReadLimitBy)
             -> Result<(Vec<Vec<u8>>, u64), String>
     {
-        let block_lock = this.read_block(id)?;
+        let block_lock = this.read_block(&task, &id)?;
         let block = block_lock.read();
         block.read(id, pos, limit)
     }
-    fn write(this: Arc<Self>, id: UUID, items: Vec<Vec<u8>>) -> Result<Vec<u64>, String> {
-        let block = this.write_block(id)?;
+    fn write(this: Arc<Self>, task: UUID, id: UUID, items: Vec<Vec<u8>>) -> Result<Vec<u64>, String> {
+        let block = this.write_block(task, id)?;
         let mut owned = block.write();
         owned.write(id, items)
     }
-    fn remove(this: Arc<Self>, id: UUID) -> Result<(), ()> {
-        this.blocks
-            .write()
+    fn remove(this: Arc<Self>, task: UUID, id: UUID) -> Result<(), String> {
+        let task_blocks_lock = this.task_blocks(&task)?;
+        let mut blocks = task_blocks_lock.write();
+        blocks
             .remove(&id)
-            .ok_or(())
-            .map(|b| ())
+            .ok_or_else(|| "NO BLOCK".to_string())
+            .map(|_| ())
     }
-    fn get(this: Arc<Self>, id: UUID, key: UUID) -> Result<Option<Vec<u8>>, String> {
-        let block_lock = this.read_block(id)?;
+    fn get(this: Arc<Self>, task: UUID, id: UUID, key: UUID) -> Result<Option<Vec<u8>>, String> {
+        let block_lock = this.read_block(&task, &id)?;
         let block = block_lock.read();
         let pos = block.kv_map
             .get(&key)
             .ok_or("NO KEY")?;
         block.read(id, *pos, ReadLimitBy::Items(1)).map(|d| d.0.into_iter().next())
     }
-    fn set(this: Arc<Self>, id: UUID, key: UUID, value: Vec<u8>) -> Result<(), String> {
-        let block_lock = this.write_block(id)?;
+    fn set(this: Arc<Self>, task: UUID, id: UUID, key: UUID, value: Vec<u8>) -> Result<(), String> {
+        let block_lock = this.write_block(task, id)?;
         let mut block = block_lock.write();
         let loc = block.write(id, vec![value])?[0];
         block.kv_map.insert(key, loc);
         Ok(())
     }
     // only remove from index
-    fn unset(this: Arc<Self>, id: UUID, key: UUID) -> Result<Option<()>, String> {
-        let block_lock = this.write_block(id)?;
+    fn unset(this: Arc<Self>, task: UUID, id: UUID, key: UUID) -> Result<Option<()>, String> {
+        let block_lock = this.write_block(task, id)?;
         let mut block = block_lock.write();
         Ok(block.kv_map.remove(&key).map(|_| ()))
+    }
+    fn remove_task(this: Arc<Self>, task: UUID) -> Result<(), String> {
+        let retained_task = this.blocks.write().remove(&task);
+        drop(retained_task); // drop after master rwlock released
+        return Ok(())
     }
 }
 
