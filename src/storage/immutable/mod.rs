@@ -43,20 +43,16 @@ impl ImmutableManager {
     }
 
 
-    pub fn write(&self, task: UUID, id: UUID, items: &Vec<Vec<u8>>)
-        -> Box<Future<Item = Vec<u64>, Error = String>>
+    pub fn write(&self, task: UUID, id: UUID, items: Vec<Vec<u8>>)
+        -> impl Future<Item = Vec<u64>, Error = String>
     {
-        //self.ensure_registed(task, id)
-        unimplemented!()
+        let block_manager = self.block_manager.clone();
+        let server_id = self.server_id;
+        self.ensure_registed(task, id)
+            .and_then(move |_| block_manager.write(server_id, &task, &id, &items))
     }
 
-    pub fn remove(&self, task: UUID, id: UUID)
-        -> Box<Future<Item = Option<()>, Error = String>>
-    {
-        unimplemented!()
-    }
-
-    pub fn get(&self, task: UUID, key: &UUID)
+    pub fn get(&self, task: UUID, key: UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         unimplemented!()

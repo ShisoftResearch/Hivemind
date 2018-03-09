@@ -58,14 +58,15 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
     pub fn from_block_storage(
         manager: &Arc<BlockManager>,
         server_id: u64,
+        task: UUID,
         id: UUID,
         members: Vec<u64>,
         buff_size: u64
     ) -> Self {
         DataSet::new(
-            box BlockStorage::new(manager, server_id, id, buff_size),
+            box BlockStorage::new(manager, server_id, task, id, buff_size),
             DataSetSourceType::BlockStorage(BlockStorageProperty {
-                id, members, server_id
+                id, members, server_id, task
             }))
     }
     fn ser_data(&self) -> SerdeDataSet {
@@ -93,7 +94,7 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
             SerdeDataSet::BlockStorage(prop) => {
                 Self::from_block_storage(
                     &BlockManager::default(),
-                    prop.server_id, prop.id, prop.members, STORAGE_BUFFER)
+                    prop.server_id, prop.task, prop.id, prop.members, STORAGE_BUFFER)
             }
         }
     }

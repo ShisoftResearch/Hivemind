@@ -77,6 +77,7 @@ impl Hive {
         let block_manager = self.block_manager.clone();
         let block_manager2 = self.block_manager.clone();
         let this_server_id = self.server.server_id;
+        let task = self.task_id;
         let distribute_fut = source
             .map(|item: T| {
                 bincode::serialize(&item)
@@ -85,13 +86,13 @@ impl Hive {
             .zip(repeat_members)
             .map(move |pair: (Vec<Vec<u8>>, u64)|{
                 let (chunk, server_id) = pair;
-                block_manager.write(server_id, id, &chunk)
+                block_manager.write(server_id, &task, &id, &chunk)
             })
             .buffered(num_members)
             .for_each(|_| Ok(()));
         distribute_fut.map(move |_| {
             let mut dataset = DataSet::from_block_storage(
-                &block_manager2, this_server_id, id,
+                &block_manager2, this_server_id, task, id,
                 members,
                 STORAGE_BUFFER);
             return dataset;

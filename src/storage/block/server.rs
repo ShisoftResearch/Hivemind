@@ -30,19 +30,19 @@ impl BlockOwnerServer {
 }
 
 impl Service for BlockOwnerServer {
-    fn read(&self, id: UUID, pos: u64, limit: ReadLimitBy)
+    fn read(&self, task: UUID, id: UUID, pos: u64, limit: ReadLimitBy)
         -> Box<Future<Item = (Vec<Vec<u8>>, u64), Error = String>>
     {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::read(inner, id, pos, limit))
     }
-    fn write(&self, id: UUID, items: Vec<Vec<u8>>)
+    fn write(&self, task: UUID, id: UUID, items: Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::write(inner, id, items))
     }
-    fn remove(&self, id: UUID)
+    fn remove(&self, task: UUID, id: UUID)
         ->Box<Future<Item = (), Error = ()>>
     {
         let inner = self.inner.clone();

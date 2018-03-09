@@ -23,9 +23,9 @@ use server::members::LiveMembers;
 mod server;
 
 service! {
-    rpc read(id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
-    rpc write(id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
-    rpc remove(id: UUID);
+    rpc read(task: UUID, id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
+    rpc write(task: UUID, id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
+    rpc remove(task: UUID, id: UUID);
 
     rpc get(id: UUID, key: UUID) -> Option<Vec<u8>> | String;
     rpc set(id: UUID, key: UUID, value: Vec<u8>) | String;
@@ -65,6 +65,7 @@ impl BlockManager {
             Ok(service) => {
                 box service
                     .read(
+                        &cursor.task,
                         &cursor.id,
                         &cursor.pos,
                         &cursor.limit
@@ -81,13 +82,13 @@ impl BlockManager {
         }
 
     }
-    pub fn write(&self, server_id: u64, id: UUID, items: &Vec<Vec<u8>>)
+    pub fn write(&self, server_id: u64, task: &UUID, id: &UUID, items: &Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .write(&id, items)
+                    .write(task, id, items)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },
@@ -95,39 +96,39 @@ impl BlockManager {
         }
 
     }
-    pub fn remove(&self, server_id: u64, id: UUID)
+    pub fn remove(&self, server_id: u64, task: &UUID, id: &UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .remove(&id)
+                    .remove(task, id)
                     .map_err(|e| format!("{:?}", e))
                     .map(|r| r.ok())
             },
             Err(e) => box future::err(e)
         }
     }
-    pub fn get(&self, server_id: u64, id: UUID, key: &UUID)
+    pub fn get(&self, server_id: u64, id: &UUID, key: &UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .get(&id, key)
+                    .get(id, key)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },
             Err(e) => box future::err(e)
         }
     }
-    pub fn set(&self, server_id: u64, id: UUID, key: &UUID, value: &Vec<u8>)
+    pub fn set(&self, server_id: u64, id: &UUID, key: &UUID, value: &Vec<u8>)
                -> Box<Future<Item =  (), Error = String>>
     {
         match self.get_service(server_id) {
             Ok(service) => {
                 box service
-                    .set(&id, key, value)
+                    .set(id, key, value)
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
             },
@@ -176,14 +177,15 @@ pub enum ReadLimitBy {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BlockCursor {
     pub pos: u64,
+    task: UUID,
     id: UUID,
     limit: ReadLimitBy,
 }
 
 impl BlockCursor {
-    pub fn new(id: UUID, limit: ReadLimitBy) -> BlockCursor {
+    pub fn new(task: UUID, id: UUID, limit: ReadLimitBy) -> BlockCursor {
         BlockCursor {
-            id, pos: 0, limit
+            task, id, pos: 0, limit
         }
     }
 }

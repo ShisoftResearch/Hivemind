@@ -18,12 +18,12 @@ pub struct BlockStorage<T> where T: DeserializeOwned {
 }
 
 impl <T> BlockStorage<T> where T: DeserializeOwned + 'static {
-    pub fn new(manager: &Arc<BlockManager>, server_id: u64, id: UUID, buff_size: u64) -> BlockStorage<T> {
+    pub fn new(manager: &Arc<BlockManager>, server_id: u64, task: UUID, id: UUID, buff_size: u64) -> BlockStorage<T> {
         return BlockStorage {
             server_id,
             block_id: id,
             manager: manager.clone(),
-            cursor: BlockCursor::new(id, ReadLimitBy::Items(buff_size)),
+            cursor: BlockCursor::new(task, id, ReadLimitBy::Items(buff_size)),
             fut: None,
             buffer: box vec![].into_iter()
         }
@@ -73,6 +73,7 @@ impl <T> Stream for BlockStorage<T> where T: DeserializeOwned + 'static {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BlockStorageProperty {
     pub id: UUID,
+    pub task: UUID,
     pub members: Vec<u64>,
     pub server_id: u64
 }
