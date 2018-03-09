@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::{BTreeMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use bifrost::raft::RaftService;
 use bifrost::raft::state_machine::StateMachineCtl;
@@ -11,12 +11,12 @@ pub static RAFT_SM_ID: u64 = hash_ident!(IMMUTABLE_STORAGE_REGISTRY_STATE_MACHIN
 raft_state_machine! {
     def cmd create_registry(id: UUID) | ImmutableStorageRegistryError;
     def cmd set_location(id: UUID, key: UUID, server: u64) | ImmutableStorageRegistryError;
-    def qry get_location(id: UUID, key: UUID) -> u64 | ImmutableStorageRegistryError;
+    def qry get_location(id: UUID, key: UUID) -> BTreeSet<u64> | ImmutableStorageRegistryError;
     def cmd dispose_registry(id: UUID) | ImmutableStorageRegistryError;
 }
 
 pub struct ImmutableStorageRegistry {
-    registry: BTreeMap<UUID, BTreeMap<UUID, u64>>
+    registry: BTreeMap<UUID, BTreeMap<UUID, BTreeSet<u64>>>
 }
 
 impl StateMachineCmds for ImmutableStorageRegistry {
@@ -33,7 +33,9 @@ impl StateMachineCmds for ImmutableStorageRegistry {
             if m.contains_key(&key) {
                 return Err(ImmutableStorageRegistryError::ItemExisted);
             } else {
-                m.insert(key, server);
+                m.entry(key)
+                    .or_insert_with(|| BTreeSet::new())
+                    .insert(server);
                 return Ok(())
             }
         } else {
@@ -41,10 +43,10 @@ impl StateMachineCmds for ImmutableStorageRegistry {
         }
     }
 
-    fn get_location(&self, id: UUID, key: UUID) -> Result<u64, ImmutableStorageRegistryError> {
+    fn get_location(&self, id: UUID, key: UUID) -> Result<BTreeSet<u64>, ImmutableStorageRegistryError> {
         if let Some(ref m) = self.registry.get(&id) {
             if let Some(server) = m.get(&key) {
-                return Ok(*server)
+                return Ok(server.clone())
             } else {
                 return  Err(ImmutableStorageRegistryError::ItemExisted)
             }

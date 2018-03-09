@@ -58,10 +58,13 @@ impl ImmutableManager {
         unimplemented!()
     }
 
-    pub fn set(&self, task: UUID, key: &Vec<u8>, value: &UUID)
-        -> Box<Future<Item =  (), Error = String>>
+    pub fn set(&self, task: UUID, key: UUID, value: Vec<u8>)
+        -> impl Future<Item =  (), Error = String>
     {
-        unimplemented!()
+        let block_manager = self.block_manager.clone();
+        let server_id = self.server_id;
+        self.ensure_registed(task, key) // use key here, so key must be unique in one task
+            .and_then(move |_| block_manager.set(server_id, &task, &task, &key, &value))
     }
 
     pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = Option<()>, Error = String> {

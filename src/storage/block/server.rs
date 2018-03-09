@@ -157,7 +157,7 @@ impl BlockOwnerServerInner {
     }
     fn remove_task(this: Arc<Self>, task: UUID) -> Result<(), String> {
         let retained_task = this.blocks.write().remove(&task);
-        drop(retained_task); // drop after master rwlock released
+        drop(retained_task); // drop/delete block files after master rwlock released
         return Ok(())
     }
 }
