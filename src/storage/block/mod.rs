@@ -152,6 +152,19 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
+    pub fn exists(&self, server_id: u64, task: &UUID, id: &UUID)
+        -> Box<Future<Item = bool, Error = String>>
+    {
+        match self.get_service(server_id) {
+            Ok(service) => {
+                box service
+                    .exists(task, id)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r)
+            },
+            Err(e) => box future::err(e)
+        }
+    }
     fn get_service(&self, server_id: u64) -> Result<Arc<AsyncServiceClient>, String> {
         // shortcut is enabled in bifrost, no need to check locality
         let client = match {
@@ -181,9 +194,9 @@ pub enum ReadLimitBy {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BlockCursor {
     pub pos: u64,
-    task: UUID,
-    id: UUID,
-    limit: ReadLimitBy,
+    pub task: UUID,
+    pub id: UUID,
+    pub limit: ReadLimitBy,
 }
 
 impl BlockCursor {

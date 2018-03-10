@@ -2,7 +2,7 @@ pub mod state_machine;
 
 use std::sync::Arc;
 use std::collections::{BTreeSet, BTreeMap};
-use super::block::{BlockManager, BlockCursor};
+use super::block::{BlockManager, BlockCursor, ReadLimitBy};
 use bifrost::utils::async_locks::{RwLock};
 use bifrost::raft::client::{RaftClient, SubscriptionError, SubscriptionReceipt};
 use bifrost::raft::state_machine::master::ExecError;
@@ -39,21 +39,77 @@ impl ImmutableManager {
         })
     }
 
-    fn clone_block(&self, starting_cursor: &BlockCursor)
-        -> Box<Future<Item = (), Error = String>>
+    fn clone_block(
+        server_id: u64,
+        source_server: u64,
+        block_manager: &Arc<BlockManager>,
+        starting_cursor: &BlockCursor
+    )
+        -> impl Future<Item = (), Error = String>
     {
-        let mut cursor = starting_cursor.clone();
-        cursor.pos = 0;
-        unimplemented!()
+        let task_id = starting_cursor.task;
+        let block_manager = block_manager.clone();
+        let id = starting_cursor.id;
+        let mut cursor = BlockCursor::new(
+            starting_cursor.task,
+            starting_cursor.id,
+            ReadLimitBy::Items(BLOCK_COPY_BUFFER)
+        );
+        async_block! {
+            while true {
+                let (items, new_cursor) = await!(block_manager.read(source_server, cursor))?;
+                if items.len() < 1 {
+                    return Ok(()) // end of block
+                }
+                cursor = new_cursor;
+                await!(block_manager.write(server_id, &task_id, &id, &items))?; // write to local
+            }
+            return Ok(());
+        }
+    }
+
+    fn locate_servers(
+        reg_client: &Arc<state_machine::client::SMClient>,
+        task: &UUID, key: &UUID
+    )
+        -> impl Future<Item = Option<BTreeSet<u64>>, Error = String>
+    {
+        reg_client.get_location(&task, &key)
+            .map_err(|e| format!("Registry exec error {:?}", e))
+            .and_then(|r| r.map_err(|e| format!("Get server locations from registry error {:?}", e)))
     }
 
     pub fn read(&self, cursor: BlockCursor)
-        -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>
+        -> impl Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>
     {
         // the optimal way is to stream remote block contents to local when user requested
         // but tracking block integrity is a tedious work
         // so the solution is to copy the whole block to local if it does not present
-        unimplemented!()
+        let server_id = self.server_id;
+        let reg_client = self.registry_client.clone();
+        let block_manager = self.block_manager.clone();
+        let task = cursor.task;
+        let id = cursor.id;
+        async_block! {
+            let exists = await!(block_manager.exists(server_id, &task, &id))?;
+            let mut copied = false;
+            if !exists {
+                let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
+                if let Some(servers) = servers {
+                    for remove_server in servers {
+                        copied = await!(Self::clone_block(server_id, remove_server, &block_manager, &cursor)).is_ok();
+                        if copied {
+                            break;
+                        }
+                    }
+                }
+            }
+            if exists || copied {
+                await!(block_manager.read(server_id, cursor))
+            } else {
+                Err("Remote data not copied".to_string())
+            }
+        }
     }
 
 
@@ -75,13 +131,13 @@ impl ImmutableManager {
         let local_owned_blocks = self.local_owned_blocks.clone();
         let reg_client = self.registry_client.clone();
         async_block! {
-            let local_cache = await!(block_manager.get(server_id, &task, &task, &key))?;
-            if local_cache.is_some() {
-                return Ok(local_cache);
+            let local_cache_res = await!(block_manager.get(server_id, &task, &task, &key));
+            if let Ok(Some(_)) = local_cache_res  {
+                return local_cache_res;
             } else {
-                let servers = await!(reg_client.get_location(&task, &key))
-                    .map_err(|e| format!("Registry exec error {:?}", e))
-                    .and_then(|r| r.map_err(|e| format!("Get server locations from registry error {:?}", e)))?;
+                let servers = await!(Self::locate_servers(
+                    &reg_client, &task, &key
+                ))?;
                 match servers {
                     Some(server_ids) => {
                         for remote_server_id in server_ids {
