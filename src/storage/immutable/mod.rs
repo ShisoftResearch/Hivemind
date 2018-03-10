@@ -43,13 +43,17 @@ impl ImmutableManager {
         server_id: u64,
         source_server: u64,
         block_manager: &Arc<BlockManager>,
-        starting_cursor: &BlockCursor
+        starting_cursor: &BlockCursor,
+        reg_client: &Arc<state_machine::client::SMClient>,
+        local_owned_blocks: &LocalOwnedBlocks
     )
         -> impl Future<Item = (), Error = String>
     {
         let task_id = starting_cursor.task;
         let block_manager = block_manager.clone();
         let id = starting_cursor.id;
+        let reg_client = reg_client.clone();
+        let local_owned_blocks = local_owned_blocks.clone();
         let mut cursor = BlockCursor::new(
             starting_cursor.task,
             starting_cursor.id,
@@ -63,6 +67,9 @@ impl ImmutableManager {
                 }
                 cursor = new_cursor;
                 await!(block_manager.write(server_id, &task_id, &id, &items))?; // write to local
+                await!(ensure_registed(
+                    reg_client.clone(),
+                    local_owned_blocks.clone(), server_id, task_id, id))?;
             }
             return Ok(());
         }
@@ -88,6 +95,7 @@ impl ImmutableManager {
         let server_id = self.server_id;
         let reg_client = self.registry_client.clone();
         let block_manager = self.block_manager.clone();
+        let local_owned_blocks = self.local_owned_blocks.clone();
         let task = cursor.task;
         let id = cursor.id;
         async_block! {
@@ -97,7 +105,10 @@ impl ImmutableManager {
                 let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
                 if let Some(servers) = servers {
                     for remove_server in servers {
-                        copied = await!(Self::clone_block(server_id, remove_server, &block_manager, &cursor)).is_ok();
+                        copied = await!(Self::clone_block(
+                            server_id, remove_server, &block_manager, &cursor,
+                            &reg_client, &local_owned_blocks
+                        )).is_ok();
                         if copied {
                             break;
                         }
