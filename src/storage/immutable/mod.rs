@@ -10,6 +10,7 @@ use utils::uuid::UUID;
 use futures::prelude::*;
 
 type LocalOwnedBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<BTreeSet<UUID>>>>>>;
+const BLOCK_COPY_BUFFER: u64 = 50;
 
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum ImmutableStorageRegistryError {
@@ -41,8 +42,8 @@ impl ImmutableManager {
     fn clone_block(&self, starting_cursor: &BlockCursor)
         -> Box<Future<Item = (), Error = String>>
     {
-        assert_eq!(starting_cursor.pos, 0);
-        let cursor = starting_cursor.clone();
+        let mut cursor = starting_cursor.clone();
+        cursor.pos = 0;
         unimplemented!()
     }
 

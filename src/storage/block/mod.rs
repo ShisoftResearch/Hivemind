@@ -24,6 +24,7 @@ mod server;
 
 service! {
     rpc read(task: UUID, id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
+    rpc exists(task: UUID, id: UUID) -> bool | String;
     rpc write(task: UUID, id: UUID, items: Vec<Vec<u8>>) -> Vec<u64> | String;
     rpc remove(task: UUID, id: UUID) | String;
 
@@ -33,8 +34,6 @@ service! {
 
     rpc remove_task(task: UUID) | String;
     rpc new_task(task: UUID);
-
-    rpc exists(task: UUID, id: UUID) -> bool | String;
 }
 
 lazy_static! {
