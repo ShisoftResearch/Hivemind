@@ -4,6 +4,7 @@ use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use futures::prelude::*;
+use futures::future;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 type TaskBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>>;
@@ -74,6 +75,17 @@ impl Service for BlockOwnerServer {
         let inner = self.inner.clone();
         box self.pool.spawn_fn(move || BlockOwnerServerInner::remove_task(inner, task))
     }
+    fn new_task(&self, task: UUID)
+        -> Box<Future<Item = (), Error = ()>>
+    {
+        self.inner.new_task(task);
+        box future::ok(())
+    }
+    fn exists(&self, task: UUID, id: UUID)
+        -> Box<Future<Item = bool, Error = String>>
+    {
+        box future::result(self.inner.exists(task, id))
+    }
 }
 
 impl BlockOwnerServerInner {
@@ -98,11 +110,7 @@ impl BlockOwnerServerInner {
     fn write_block(&self, task: UUID, id: UUID)
         -> Result<Arc<RwLock<LocalOwnedBlock>>, String>
     {
-        let task_blocks = self.blocks
-            .write()
-            .entry(task)
-            .or_insert_with(|| Arc::new(RwLock::new(BTreeMap::new())))
-            .clone();
+        let task_blocks = self.task_blocks(&task)?;
         let block = task_blocks
             .write()
             .entry(id)
@@ -159,6 +167,16 @@ impl BlockOwnerServerInner {
         let retained_task = this.blocks.write().remove(&task);
         drop(retained_task); // drop/delete block files after master rwlock released
         return Ok(())
+    }
+    fn new_task(&self, task: UUID) {
+        self.blocks
+            .write()
+            .entry(task)
+            .or_insert_with(|| Arc::new(RwLock::new(BTreeMap::new())));
+    }
+    fn exists(&self, task: UUID, id: UUID) -> Result<bool, String> {
+        let task_blocks = self.task_blocks(&task)?;
+        return Ok(task_blocks.read().contains_key(&id));
     }
 }
 

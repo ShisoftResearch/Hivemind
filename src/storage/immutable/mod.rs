@@ -38,10 +38,21 @@ impl ImmutableManager {
         })
     }
 
+    fn clone_block(&self, starting_cursor: &BlockCursor)
+        -> Box<Future<Item = (), Error = String>>
+    {
+        assert_eq!(starting_cursor.pos, 0);
+        let cursor = starting_cursor.clone();
+        unimplemented!()
+    }
+
     pub fn read(&self, cursor: BlockCursor)
         -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>
     {
-        unreachable!("Will not implemented, use block storage streaming")
+        // the optimal way is to stream remote block contents to local when user requested
+        // but tracking block integrity is a tedious work
+        // so the solution is to copy the whole block to local if it does not present
+        unimplemented!()
     }
 
 

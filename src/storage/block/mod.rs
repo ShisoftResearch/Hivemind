@@ -32,6 +32,9 @@ service! {
     rpc unset(task: UUID, id: UUID, key: UUID) -> Option<()> | String;
 
     rpc remove_task(task: UUID) | String;
+    rpc new_task(task: UUID);
+
+    rpc exists(task: UUID, id: UUID) -> bool | String;
 }
 
 lazy_static! {
