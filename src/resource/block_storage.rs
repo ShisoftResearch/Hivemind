@@ -46,6 +46,9 @@ impl <T> Stream for BlockStorage<T> where T: DeserializeOwned + 'static {
                 // future exists, poll from it
                 match fut.poll() {
                     Ok(Async::Ready((items, cursor))) => {
+                        if items.len() < 1 {
+                            return Ok(Async::Ready(None))
+                        }
                         self.cursor.pos = cursor.pos;
                         self.buffer = box items.into_iter();
                         fut_ready = true;
