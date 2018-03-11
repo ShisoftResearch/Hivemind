@@ -100,22 +100,22 @@ impl ImmutableManager {
         let id = cursor.id;
         async_block! {
             let exists = await!(block_manager.exists(server_id, &task, &id))?;
-            let mut copied = false;
+            let mut cloned = false;
             if !exists {
                 let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
                 if let Some(servers) = servers {
                     for remove_server in servers {
-                        copied = await!(Self::clone_block(
+                        cloned = await!(Self::clone_block(
                             server_id, remove_server, &block_manager, &cursor,
                             &reg_client, &local_owned_blocks
                         )).is_ok();
-                        if copied {
+                        if cloned {
                             break;
                         }
                     }
                 }
             }
-            if exists || copied {
+            if exists || cloned {
                 await!(block_manager.read(server_id, cursor))
             } else {
                 Err("Remote data not copied".to_string())
