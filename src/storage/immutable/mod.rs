@@ -1,4 +1,5 @@
 pub mod state_machine;
+mod read_damper;
 
 use std::sync::Arc;
 use std::collections::{BTreeSet, BTreeMap};
@@ -23,6 +24,7 @@ pub struct ImmutableManager {
     block_manager: Arc<BlockManager>,
     registry_client: Arc<state_machine::client::SMClient>,
     local_owned_blocks: LocalOwnedBlocks,
+    read_damper: read_damper::CloneDamperManager,
     server_id: u64
 }
 
@@ -35,6 +37,7 @@ impl ImmutableManager {
             block_manager: block_manager.clone(),
             registry_client: Arc::new(state_machine::client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client)),
             local_owned_blocks: RwLock::new(BTreeMap::new()),
+            read_damper: read_damper::CloneDamperManager::new(),
             server_id
         })
     }
@@ -53,7 +56,7 @@ impl ImmutableManager {
         let block_manager = block_manager.clone();
         let id = starting_cursor.id;
         let reg_client = reg_client.clone();
-        let local_owned_blocks = local_owned_blocks.clone();
+        let local_owned_blocks = local_owned_blocks.to_owned();
         let mut cursor = BlockCursor::new(
             starting_cursor.task,
             starting_cursor.id,
@@ -87,7 +90,7 @@ impl ImmutableManager {
     }
 
     pub fn new_task(&self, task: UUID) -> impl Future<Item = (), Error = ()> {
-        let local_owned_blocks = self.local_owned_blocks.clone();
+        let local_owned_blocks = self.local_owned_blocks.to_owned();
         async_block! {
             await!(local_owned_blocks.write_async())?.entry(task).or_insert_with(|| RwLock::new(BTreeSet::new()));
             Ok(())
@@ -95,7 +98,7 @@ impl ImmutableManager {
     }
 
     pub fn remove_task(&self, task: UUID) -> impl Future<Item = (), Error = ()> {
-        let local_owned_blocks = self.local_owned_blocks.clone();
+        let local_owned_blocks = self.local_owned_blocks.to_owned();
         async_block! {
             await!(local_owned_blocks.write_async())?.remove(&task);
             Ok(())
@@ -113,20 +116,27 @@ impl ImmutableManager {
         let id = cursor.id;
         let reg_client = self.registry_client.clone();
         let block_manager = self.block_manager.clone();
-        let local_owned_blocks = self.local_owned_blocks.clone();
+        let local_owned_blocks = self.local_owned_blocks.to_owned();
+        let damper = self.read_damper.to_owned();
         async_block! {
-            let exists = await!(block_manager.exists(server_id, &task, &id))?;
+            let mut exists = await!(block_manager.exists(server_id, &task, &id))?;
             let mut cloned = false;
             if !exists {
-                let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
-                if let Some(servers) = servers {
-                    for remove_server in servers {
-                        cloned = await!(Self::clone_block(
-                            server_id, remove_server, &block_manager, &cursor,
-                            &reg_client, &local_owned_blocks
-                        )).is_ok();
-                        if cloned {
-                            break;
+                let damp_cloning = await!(damper.damp(id)).unwrap();
+                if damp_cloning.is_none() { // damped
+                    exists = await!(block_manager.exists(server_id, &task, &id))?; // double check after damping
+                }
+                if !exists {
+                    let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
+                    if let Some(servers) = servers {
+                        for remove_server in servers {
+                            cloned = await!(Self::clone_block(
+                                server_id, remove_server, &block_manager, &cursor,
+                                &reg_client, &local_owned_blocks
+                            )).is_ok();
+                            if cloned {
+                                break;
+                            }
                         }
                     }
                 }
@@ -196,7 +206,7 @@ impl ImmutableManager {
     pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = Option<()>, Error = String> {
         let reg_client = self.registry_client.clone();
         let server_id = self.server_id;
-        ensure_registed(reg_client, self.local_owned_blocks.clone(), server_id, task_id, key)
+        ensure_registed(reg_client, self.local_owned_blocks.to_owned(), server_id, task_id, key)
     }
 }
 
@@ -234,8 +244,3 @@ pub fn ensure_registed(
                 }
         })
 }
-
-// Damp read operations from parallel cloning the same block
-//struct ReadDamper {
-//    working_blocks: RwLock<UUID, >
-//}

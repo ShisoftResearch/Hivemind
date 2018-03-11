@@ -105,8 +105,7 @@ impl <T> Stream for DataSet<T> where T: Serialize + DeserializeOwned + 'static {
     type Error = String;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let mut source = self.source.get_mut();
-        source.poll()
+        self.source.get_mut().poll()
     }
 }
 
