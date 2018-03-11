@@ -9,7 +9,7 @@ use bifrost::raft::state_machine::master::ExecError;
 use utils::uuid::UUID;
 use futures::prelude::*;
 
-type LocalOwnedBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<BTreeSet<UUID>>>>>>;
+type LocalOwnedBlocks = RwLock<BTreeMap<UUID, RwLock<BTreeSet<UUID>>>>;
 const BLOCK_COPY_BUFFER: u64 = 50;
 
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -34,7 +34,7 @@ impl ImmutableManager {
         Arc::new(ImmutableManager {
             block_manager: block_manager.clone(),
             registry_client: Arc::new(state_machine::client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client)),
-            local_owned_blocks: Arc::new(RwLock::new(BTreeMap::new())),
+            local_owned_blocks: RwLock::new(BTreeMap::new()),
             server_id
         })
     }
@@ -86,6 +86,22 @@ impl ImmutableManager {
             .and_then(|r| r.map_err(|e| format!("Get server locations from registry error {:?}", e)))
     }
 
+    pub fn new_task(&self, task: UUID) -> impl Future<Item = (), Error = ()> {
+        let local_owned_blocks = self.local_owned_blocks.clone();
+        async_block! {
+            await!(local_owned_blocks.write_async())?.entry(task).or_insert_with(|| RwLock::new(BTreeSet::new()));
+            Ok(())
+        }
+    }
+
+    pub fn remove_task(&self, task: UUID) -> impl Future<Item = (), Error = ()> {
+        let local_owned_blocks = self.local_owned_blocks.clone();
+        async_block! {
+            await!(local_owned_blocks.write_async())?.remove(&task);
+            Ok(())
+        }
+    }
+
     pub fn read(&self, cursor: BlockCursor)
         -> impl Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>
     {
@@ -93,11 +109,11 @@ impl ImmutableManager {
         // but tracking block integrity is a tedious work
         // so the solution is to copy the whole block to local if it does not present
         let server_id = self.server_id;
+        let task = cursor.task;
+        let id = cursor.id;
         let reg_client = self.registry_client.clone();
         let block_manager = self.block_manager.clone();
         let local_owned_blocks = self.local_owned_blocks.clone();
-        let task = cursor.task;
-        let id = cursor.id;
         async_block! {
             let exists = await!(block_manager.exists(server_id, &task, &id))?;
             let mut cloned = false;
@@ -136,9 +152,9 @@ impl ImmutableManager {
     pub fn get(&self, task: UUID, key: UUID)
         -> impl Future<Item = Option<Vec<u8>>, Error = String>
     {
+        let server_id = self.server_id;
         let block_manager = self.block_manager.clone();
         let reg_client = self.registry_client.clone();
-        let server_id = self.server_id;
         let local_owned_blocks = self.local_owned_blocks.clone();
         let reg_client = self.registry_client.clone();
         async_block! {
@@ -218,3 +234,8 @@ pub fn ensure_registed(
                 }
         })
 }
+
+// Damp read operations from parallel cloning the same block
+//struct ReadDamper {
+//    working_blocks: RwLock<UUID, >
+//}
