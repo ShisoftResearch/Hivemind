@@ -1,3 +1,4 @@
+use super::streamable_storage::*;
 use storage::block::{BlockManager, BlockCursor, ReadLimitBy};
 use futures::prelude::*;
 use utils::uuid::UUID;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use bifrost::utils::bincode;
 use serde::de::DeserializeOwned;
 
-type BuffFut<T> = Box<Future<Item = (Vec<T>, BlockCursor), Error = String>>;
 
 pub struct BlockStorage<T> where T: DeserializeOwned {
     server_id: u64,
@@ -30,48 +30,18 @@ impl <T> BlockStorage<T> where T: DeserializeOwned + 'static {
     }
 }
 
-impl <T> Stream for BlockStorage<T> where T: DeserializeOwned + 'static {
-    type Item = T;
-    type Error = String;
+impl <T> BufferedStreamableStorage<T> for BlockStorage<T> where T: DeserializeOwned + 'static {
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let iter_buf = self.buffer.next();
-        if let Some(item) = iter_buf {
-            // item buffered and exists
-            return Ok(Async::Ready(Some(item)))
-        } else {
-            // buffer is empty
-            let mut fut_ready = false;
-            if let Some(ref mut fut) = self.fut {
-                // future exists, poll from it
-                match fut.poll() {
-                    Ok(Async::Ready((items, cursor))) => {
-                        if items.len() < 1 {
-                            return Ok(Async::Ready(None))
-                        }
-                        self.cursor.pos = cursor.pos;
-                        self.buffer = box items.into_iter();
-                        fut_ready = true;
-                    },
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(e) => return Err(e)
-                }
-            }
-            if fut_ready {
-                self.fut = None;
-                return self.poll()
-            }
-            // No future and iterator is empty, go get one
-            let new_fut = self.manager
-                .read(self.server_id, self.cursor.clone())
-                .map(|(ds, cursor)| {
-                    (ds.iter().map(|d| bincode::deserialize(d)).collect(), cursor)
-                });
-            self.fut = Some(box new_fut);
-            return Ok(Async::NotReady)
-        }
+    #[inline]
+    fn read_batch(&mut self) -> Box<Future<Item=(Vec<Vec<u8>>, BlockCursor), Error=String>> {
+        self.manager.read(self.server_id, self.cursor.clone())
     }
+
+    impl_stream_sources!();
+
 }
+
+impl_stream!(BlockStorage);
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BlockStorageProperty {

@@ -1,5 +1,8 @@
+#[macro_use]
+pub mod streamable_storage;
 pub mod block_storage;
 pub mod global_storage;
+pub mod immutable_storage;
 
 use std::marker::PhantomData;
 use std::sync::Arc;
