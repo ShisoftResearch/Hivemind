@@ -214,11 +214,16 @@ impl Hive {
         unimplemented!()
     }
     /// Return a DataSet that it's contents from the object provided
-    pub fn data_from<II, T, I>(&self, source: II) -> DataSet<T>
+    pub fn dataset_from<II, T, I>(&self, source: II) -> DataSet<T>
         where T: Serialize + DeserializeOwned,
               I: Iterator<Item = T> + 'static,
               II: IntoIterator<Item = T, IntoIter = I>
     {
         DataSet::from(source)
+    }
+    pub fn data_from<T>(&self, value: T) -> Data<T>
+        where T: Serialize + DeserializeOwned + 'static
+    {
+        Data::from(value)
     }
 }
