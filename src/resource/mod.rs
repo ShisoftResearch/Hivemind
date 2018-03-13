@@ -179,7 +179,8 @@ impl <T> LocationTraced for DataSet<T>
 
 pub enum DataSourceType {
     Runtime,
-    GlobalStorage(UUID, Vec<u8>)
+    GlobalStorage(UUID, Vec<u8>),
+    ImmutableStorage(UUID, UUID)
 }
 
 pub struct Data<T> where T: Serialize + DeserializeOwned {
@@ -190,7 +191,8 @@ pub struct Data<T> where T: Serialize + DeserializeOwned {
 #[derive(Serialize, Deserialize)]
 pub enum SerdeData {
     Runtime(Vec<u8>),
-    GlobalStorage(UUID, Vec<u8>)
+    GlobalStorage(UUID, Vec<u8>),
+    ImmutableStorage(UUID, UUID)
 }
 
 impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
@@ -230,6 +232,18 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
         Self::from_global_storage_future(source_fut, id, key)
     }
 
+    pub fn from_immutable(manager: &Arc<ImmutableManager>, task: UUID, key: UUID)
+        -> Data<Option<T>>
+    {
+        Data {
+            source: RefCell::new(box manager.get(task, key)
+                .map(|dopt|
+                    dopt.map(|d|
+                        bincode::deserialize::<T>(&d)))),
+            source_type: DataSourceType::ImmutableStorage(task, key)
+        }
+    }
+
     pub fn error_on_none(input: Data<Option<T>>) -> Data<T> {
         let src = input.source.into_inner();
         return Data {
@@ -251,8 +265,10 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
                 }
                 unreachable!()
             },
-            DataSourceType::GlobalStorage(ref id, ref key) =>
-                SerdeData::GlobalStorage(*id, key.clone())
+            DataSourceType::GlobalStorage(ref task, ref key) =>
+                SerdeData::GlobalStorage(*task, key.clone()),
+            DataSourceType::ImmutableStorage(ref task, ref key) =>
+                SerdeData::ImmutableStorage(*task, *key)
         }
     }
 
@@ -260,10 +276,17 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
         match data {
             SerdeData::Runtime(ref data) =>
                 Data::from(bincode::deserialize::<T>(data)),
-            SerdeData::GlobalStorage(id, key) =>
-                Data::error_on_none(
-                    Data::from_global_storage(&GlobalManager::default(), id, key, false)),
+            SerdeData::GlobalStorage(task, key) =>
+                Data::from_global_storage(&GlobalManager::default(), task, key, false).unwrap(),
+            SerdeData::ImmutableStorage(task, key) =>
+                Data::from_immutable(&ImmutableManager::default(), task, key).unwrap()
         }
+    }
+}
+
+impl <T> Data <Option<T>> where T: Serialize + DeserializeOwned + 'static {
+    fn unwrap(self) -> Data<T> {
+        Data::error_on_none(self)
     }
 }
 

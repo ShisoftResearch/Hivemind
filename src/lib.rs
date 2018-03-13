@@ -162,9 +162,8 @@ impl Hive {
                 .compare_and_swap(id, key.clone(), &expect, &value), id, key)
     }
 
-    /// Write data to immutable store
-    /// This will write data to local block storage and report it's presents
-    /// on a global registry
+    /// Write data to immutable block store
+    /// This will write data to local block storage and report it's presents on global registry
     /// Id to the block should be random generated to avoid collision
     /// All read operations should happened after the block has been written
     pub fn write_immutable<T>(&self, source: DataSet<T>)
@@ -193,6 +192,20 @@ impl Hive {
                      &immutable_manager2,
                      task_id, block_id, STORAGE_BUFFER)
             })
+    }
+
+    /// Save a value to immutable store
+    /// This will write value data to local task block and report it's presents on global registry
+    pub fn data_to_immutable<T>(&self, value: T)
+        -> impl Future<Item = Data<T>, Error = String>
+        where T: Serialize + DeserializeOwned + 'static
+    {
+        let id = UUID::rand();
+        let task = self.task_id;
+        let manager = self.immutable_manager.clone();
+        self.immutable_manager.set(task, id, bincode::serialize(&value))
+            .map(move |_|
+                    Data::error_on_none(Data::from_immutable(&manager, task, id)))
     }
 
     /// Run a remote function closure across the cluster members
