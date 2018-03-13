@@ -42,6 +42,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use storage::block::BlockManager;
 use storage::global::GlobalManager;
+use storage::immutable::ImmutableManager;
 use utils::uuid::UUID;
 use utils::stream::RepeatVec;
 use server::HMServer;
@@ -58,6 +59,7 @@ pub struct Hive {
     task_id: UUID,
     block_manager: Arc<BlockManager>,
     global_manager: Arc<GlobalManager>,
+    immutable_manager: Arc<ImmutableManager>,
     members: Vec<u64>,
     server: Arc<HMServer>
 }
@@ -65,7 +67,7 @@ pub struct Hive {
 impl Hive {
     /// Distribute data across the cluster and return the local data set for further processing
     /// this function have a scope for each task. All distributed data are only accessible in their hive
-    pub fn distribute<S, T>(&self, source: DataSet<T>)
+    pub fn distribute<T>(&self, source: DataSet<T>)
         -> impl Future<Item = DataSet<T>, Error = String>
         where T: Serialize + DeserializeOwned + 'static
     {
@@ -91,11 +93,10 @@ impl Hive {
             .buffered(num_members)
             .for_each(|_| Ok(()));
         distribute_fut.map(move |_| {
-            let mut dataset = DataSet::from_block_storage(
+            DataSet::from_block_storage(
                 &block_manager2, this_server_id, task, id,
                 members,
-                STORAGE_BUFFER);
-            return dataset;
+                STORAGE_BUFFER)
         })
     }
     /// Set a global value in the data store which visible across the cluster
@@ -160,6 +161,40 @@ impl Hive {
             box self.global_manager
                 .compare_and_swap(id, key.clone(), &expect, &value), id, key)
     }
+
+    /// Write data to immutable store
+    /// This will write data to local block storage and report it's presents
+    /// on a global registry
+    /// Id to the block should be random generated to avoid collision
+    /// All read operations should happened after the block has been written
+    pub fn write_immutable<T>(&self, source: DataSet<T>)
+        -> impl Future<Item = DataSet<T>, Error = String>
+        where T: Serialize + DeserializeOwned + 'static
+    {
+        let task_id = self.task_id;
+        let block_id = UUID::rand();
+        let immutable_manager = self.immutable_manager.clone();
+        let immutable_manager2 = immutable_manager.clone();
+        self.immutable_manager.ensure_registed(task_id, block_id)
+            .and_then(move |_| {
+                source
+                    .map(move |item: T| {
+                        bincode::serialize(&item)
+                    })
+                    .chunks(STORAGE_BUFFER as usize)
+                    .map(move |items: Vec<Vec<u8>>| {
+                        immutable_manager.write(task_id, block_id, items)
+                    })
+                    .buffered(STORAGE_BUFFER as usize)
+                    .for_each(|_| Ok(()))
+            })
+            .map(move |_| {
+                 DataSet::from_immutable_storage(
+                     &immutable_manager2,
+                     task_id, block_id, STORAGE_BUFFER)
+            })
+    }
+
     /// Run a remote function closure across the cluster members
     /// The function closure (func: F) provided must be serializable
     pub fn run<F>(&self, func: F) where F: RemoteFunc {

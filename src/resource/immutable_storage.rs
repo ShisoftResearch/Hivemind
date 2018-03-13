@@ -42,3 +42,9 @@ impl <T> BufferedStreamableStorage<T> for ImmutableStorage<T> where T: Deseriali
 }
 
 impl_stream!(ImmutableStorage);
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ImmutableStorageProperty {
+    pub task_id: UUID,
+    pub id: UUID
+}

@@ -10,7 +10,9 @@ use std::cell::RefCell;
 use std::borrow::Borrow;
 use resource::block_storage::{BlockStorage, BlockStorageProperty};
 use resource::global_storage::{GlobalManager, GlobalStorageError};
+use resource::immutable_storage::{ImmutableStorage, ImmutableStorageProperty};
 use storage::block::BlockManager;
+use storage::immutable::ImmutableManager;
 use serde::de::{DeserializeOwned};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use bifrost::utils::bincode;
@@ -24,13 +26,15 @@ pub const STORAGE_BUFFER: u64 = 10;
 
 pub enum DataSetSourceType {
     Runtime,
-    BlockStorage(BlockStorageProperty)
+    BlockStorage(BlockStorageProperty),
+    ImmutableStorage(ImmutableStorageProperty)
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum SerdeDataSet {
     Runtime(Vec<Vec<u8>>),
-    BlockStorage(BlockStorageProperty)
+    BlockStorage(BlockStorageProperty),
+    ImmutableStorage(ImmutableStorageProperty)
 }
 
 pub struct DataSet<T> where T: Serialize + DeserializeOwned {
@@ -58,6 +62,7 @@ impl <II, T, I> From<II> for DataSet<T>
 }
 
 impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
+
     pub fn from_block_storage(
         manager: &Arc<BlockManager>,
         server_id: u64,
@@ -72,6 +77,23 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
                 id, members, server_id, task
             }))
     }
+
+    pub fn from_immutable_storage(
+        manager: &Arc<ImmutableManager>,
+        task_id: UUID,
+        id: UUID,
+        buff_size: u64
+    )
+        -> Self
+    {
+        DataSet::new(
+            box ImmutableStorage::new(manager, task_id, id, buff_size),
+            DataSetSourceType::ImmutableStorage(ImmutableStorageProperty {
+                task_id, id
+            })
+        )
+    }
+
     fn ser_data(&self) -> SerdeDataSet {
         match self.source_type {
             DataSetSourceType::Runtime => {
@@ -83,7 +105,8 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
                 }
                 SerdeDataSet::Runtime(vec)
             },
-            DataSetSourceType::BlockStorage(ref prop) => SerdeDataSet::BlockStorage(prop.clone())
+            DataSetSourceType::BlockStorage(ref prop) => SerdeDataSet::BlockStorage(prop.clone()),
+            DataSetSourceType::ImmutableStorage(ref prop) => SerdeDataSet::ImmutableStorage(prop.clone())
         }
     }
     fn from_de_data(data: SerdeDataSet) -> DataSet<T> {
@@ -98,6 +121,12 @@ impl <T> DataSet<T> where T: Serialize + DeserializeOwned + 'static {
                 Self::from_block_storage(
                     &BlockManager::default(),
                     prop.server_id, prop.task, prop.id, prop.members, STORAGE_BUFFER)
+            },
+            SerdeDataSet::ImmutableStorage(prop) => {
+                Self::from_immutable_storage(
+                    &ImmutableManager::default(),
+                    prop.task_id, prop.id, STORAGE_BUFFER
+                )
             }
         }
     }
@@ -233,7 +262,7 @@ impl <T> Data <T> where T: Serialize + DeserializeOwned + 'static {
                 Data::from(bincode::deserialize::<T>(data)),
             SerdeData::GlobalStorage(id, key) =>
                 Data::error_on_none(
-                    Data::from_global_storage(&GlobalManager::default(), id, key, false))
+                    Data::from_global_storage(&GlobalManager::default(), id, key, false)),
         }
     }
 }

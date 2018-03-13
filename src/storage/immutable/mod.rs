@@ -13,6 +13,10 @@ use futures::prelude::*;
 type LocalOwnedBlocks = RwLock<BTreeMap<UUID, RwLock<BTreeSet<UUID>>>>;
 const BLOCK_COPY_BUFFER: u64 = 50;
 
+lazy_static! {
+    static ref DEFAULT: RwLock<Option<Arc<ImmutableManager>>> = RwLock::new(None);
+}
+
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum ImmutableStorageRegistryError {
     RegistryNotExisted,
@@ -31,15 +35,21 @@ pub struct ImmutableManager {
 impl ImmutableManager {
 
     pub fn new(block_manager: &Arc<BlockManager>, raft_client: &Arc<RaftClient>, server_id: u64)
-        -> Arc<ImmutableManager>
+        -> Arc<Self>
     {
-        Arc::new(ImmutableManager {
+        let manager = Arc::new(ImmutableManager {
             block_manager: block_manager.clone(),
             registry_client: Arc::new(state_machine::client::SMClient::new(state_machine::RAFT_SM_ID, &raft_client)),
             local_owned_blocks: RwLock::new(BTreeMap::new()),
             read_damper: read_damper::CloneDamperManager::new(),
             server_id
-        })
+        });
+        *DEFAULT.write() = Some(manager.clone());
+        return manager;
+    }
+
+    pub fn default() -> Arc<Self> {
+        (*DEFAULT.read()).clone().unwrap()
     }
 
     fn clone_block(
@@ -150,13 +160,13 @@ impl ImmutableManager {
     }
 
 
+    /// At this point 'ensure_registed' should be called first
     pub fn write(&self, task: UUID, id: UUID, items: Vec<Vec<u8>>)
         -> impl Future<Item = Vec<u64>, Error = String>
     {
         let block_manager = self.block_manager.clone();
         let server_id = self.server_id;
-        self.ensure_registed(task, id)
-            .and_then(move |_| block_manager.write(server_id, &task, &id, &items))
+        block_manager.write(server_id, &task, &id, &items)
     }
 
     pub fn get(&self, task: UUID, key: UUID)
@@ -203,7 +213,7 @@ impl ImmutableManager {
             .and_then(move |_| block_manager.set(server_id, &task, &task, &key, &value))
     }
 
-    pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = Option<()>, Error = String> {
+    pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = (), Error = String> {
         let reg_client = self.registry_client.clone();
         let server_id = self.server_id;
         ensure_registed(reg_client, self.local_owned_blocks.to_owned(), server_id, task_id, key)
@@ -214,7 +224,7 @@ pub fn ensure_registed(
     reg_client: Arc<state_machine::client::SMClient>,
     local_owned_blocks: LocalOwnedBlocks,
     server_id: u64, task_id: UUID, key: UUID
-) -> impl Future<Item = Option<()>, Error = String> {
+) -> impl Future<Item = (), Error = String> {
     local_owned_blocks
         .read_async()
         .map_err(|_| "unexpected".to_string())
@@ -228,7 +238,7 @@ pub fn ensure_registed(
                     {
                         let owned = await!(local_owned_lock.read_async()).unwrap();
                         if owned.contains(&key) {
-                            return Ok(None)
+                            return Err("Item already exists in local immutable registry".to_string());
                         }
                     }
                     {
@@ -240,7 +250,7 @@ pub fn ensure_registed(
                             .map_err(|e| format!("Registry exec error {:?}", e))
                             .and_then(|r| r.map_err(|e| format!("Registry error {:?}", e))))?
                     }
-                    return Ok(Some(()))
+                    return Ok(())
                 }
         })
 }
