@@ -79,7 +79,7 @@ impl ImmutableManager {
                     return Ok(()) // end of block
                 }
                 cursor = new_cursor;
-                await!(block_manager.write(server_id, &task_id, &id, &items))?; // write to local
+                await!(block_manager.write(server_id, task_id, id, items))?; // write to local
                 await!(ensure_registed(
                     reg_client.clone(),
                     local_owned_blocks.clone(), server_id, task_id, id))?;
@@ -129,12 +129,12 @@ impl ImmutableManager {
         let local_owned_blocks = self.local_owned_blocks.to_owned();
         let damper = self.read_damper.to_owned();
         async_block! {
-            let mut exists = await!(block_manager.exists(server_id, &task, &id))?;
+            let mut exists = await!(block_manager.exists(server_id, task, id))?;
             let mut cloned = false;
             if !exists {
                 let damp_cloning = await!(damper.damp(id)).unwrap();
                 if damp_cloning.is_none() { // damped
-                    exists = await!(block_manager.exists(server_id, &task, &id))?; // double check after damping
+                    exists = await!(block_manager.exists(server_id, task, id))?; // double check after damping
                 }
                 if !exists {
                     let servers = await!(Self::locate_servers(&reg_client, &task, &id))?;
@@ -166,7 +166,7 @@ impl ImmutableManager {
     {
         let block_manager = self.block_manager.clone();
         let server_id = self.server_id;
-        block_manager.write(server_id, &task, &id, &items)
+        block_manager.write(server_id, task, id, items)
     }
 
     pub fn get(&self, task: UUID, key: UUID)
@@ -178,7 +178,7 @@ impl ImmutableManager {
         let local_owned_blocks = self.local_owned_blocks.clone();
         let reg_client = self.registry_client.clone();
         async_block! {
-            let local_cache_res = await!(block_manager.get(server_id, &task, &task, &key));
+            let local_cache_res = await!(block_manager.get(server_id, task, task, key));
             if let Ok(Some(_)) = local_cache_res  {
                 return local_cache_res;
             } else {
@@ -188,9 +188,9 @@ impl ImmutableManager {
                 match servers {
                     Some(server_ids) => {
                         for remote_server_id in server_ids {
-                            if let Ok(remote) = await!(block_manager.get(remote_server_id, &task, &task, &key)) {
+                            if let Ok(remote) = await!(block_manager.get(remote_server_id, task, task, key)) {
                                 if let Some(remote_value) = remote {
-                                    await!(block_manager.set(server_id, &task, &task, &key, &remote_value))?;
+                                    await!(block_manager.set(server_id, task, task, key, remote_value.clone()))?;
                                     await!(ensure_registed(reg_client, local_owned_blocks, server_id, task, key))?;
                                     return Ok(Some(remote_value));
                                 }
@@ -210,7 +210,7 @@ impl ImmutableManager {
         let block_manager = self.block_manager.clone();
         let server_id = self.server_id;
         self.ensure_registed(task, key) // use key here, so key must be unique in one task
-            .and_then(move |_| block_manager.set(server_id, &task, &task, &key, &value))
+            .and_then(move |_| block_manager.set(server_id, task, task, key, value))
     }
 
     pub fn ensure_registed(&self, task_id: UUID, key: UUID) -> impl Future<Item = (), Error = String> {

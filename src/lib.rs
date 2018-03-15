@@ -88,7 +88,7 @@ impl Hive {
             .zip(repeat_members)
             .map(move |pair: (Vec<Vec<u8>>, u64)|{
                 let (chunk, server_id) = pair;
-                block_manager.write(server_id, &task, &id, &chunk)
+                block_manager.write(server_id, task, id, chunk)
             })
             .buffered(num_members)
             .for_each(|_| Ok(()));

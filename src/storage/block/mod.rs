@@ -69,10 +69,10 @@ impl BlockManager {
             Ok(service) => {
                 box service
                     .read(
-                        &cursor.task,
-                        &cursor.id,
-                        &cursor.pos,
-                        &cursor.limit
+                        cursor.task,
+                        cursor.id,
+                        cursor.pos,
+                        cursor.limit
                     )
                     .map_err(|e| format!("{:?}", e))
                     .and_then(|r| r)
@@ -86,7 +86,7 @@ impl BlockManager {
         }
 
     }
-    pub fn write(&self, server_id: u64, task: &UUID, id: &UUID, items: &Vec<Vec<u8>>)
+    pub fn write(&self, server_id: u64, task: UUID, id: UUID, items: Vec<Vec<u8>>)
         -> Box<Future<Item = Vec<u64>, Error = String>>
     {
         match self.get_service(server_id) {
@@ -100,7 +100,7 @@ impl BlockManager {
         }
 
     }
-    pub fn remove(&self, server_id: u64, task: &UUID, id: &UUID)
+    pub fn remove(&self, server_id: u64, task: UUID, id: UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         match self.get_service(server_id) {
@@ -113,7 +113,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn get(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID)
+    pub fn get(&self, server_id: u64, task: UUID, id: UUID, key: UUID)
         -> Box<Future<Item = Option<Vec<u8>>, Error = String>>
     {
         match self.get_service(server_id) {
@@ -126,7 +126,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn set(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID, value: &Vec<u8>)
+    pub fn set(&self, server_id: u64, task: UUID, id: UUID, key: UUID, value: Vec<u8>)
                -> Box<Future<Item =  (), Error = String>>
     {
         match self.get_service(server_id) {
@@ -139,7 +139,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn unset(&self, server_id: u64, task: &UUID, id: &UUID, key: &UUID)
+    pub fn unset(&self, server_id: u64, task: UUID, id: UUID, key: UUID)
         -> Box<Future<Item = Option<()>, Error = String>>
     {
         match self.get_service(server_id) {
@@ -152,7 +152,7 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
-    pub fn exists(&self, server_id: u64, task: &UUID, id: &UUID)
+    pub fn exists(&self, server_id: u64, task: UUID, id: UUID)
         -> Box<Future<Item = bool, Error = String>>
     {
         match self.get_service(server_id) {
