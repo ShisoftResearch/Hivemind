@@ -20,7 +20,6 @@ impl StorageManagers {
     pub fn new(
         live_members: &Arc<LiveMembers>,
         raft_client: &Arc<RaftClient>,
-        block_manager: &Arc<block::BlockManager>,
         server_id: u64
     ) -> Arc<StorageManagers> {
         let block_manager =
