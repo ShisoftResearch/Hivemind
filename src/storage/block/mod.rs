@@ -5,6 +5,7 @@
 // Lookup is accomplished by a runtime address map
 // Blocks also support lazy loading and streaming, which means it have a cursor so a request can fetch partial of it.
 
+use super::*;
 use std::fs::{File, remove_file};
 use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
@@ -18,7 +19,6 @@ use parking_lot::{RwLock, Mutex};
 use byteorder::{ByteOrder, LittleEndian};
 
 use utils::uuid::UUID;
-use server::members::LiveMembers;
 
 mod server;
 

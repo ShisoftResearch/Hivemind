@@ -1,0 +1,2 @@
+use hivemind::resource;
+

@@ -3,7 +3,7 @@
 
 mod state_machine;
 
-use bifrost::raft::client::{RaftClient, SubscriptionError, SubscriptionReceipt};
+use super::*;
 use bifrost::raft::state_machine::master::ExecError;
 use utils::uuid::UUID;
 use std::collections::{HashMap, BTreeMap, HashSet};
