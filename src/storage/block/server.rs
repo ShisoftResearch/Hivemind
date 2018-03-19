@@ -8,20 +8,20 @@ use futures::future;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
 type TaskBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>>;
-pub static DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
+pub static BLOCK_OWNER_DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
 
 pub struct BlockOwnerServer {
     inner: Arc<BlockOwnerServerInner>,
     pool: CpuPool
 }
 
-pub struct BlockOwnerServerInner {
+struct BlockOwnerServerInner {
     blocks: RwLock<BTreeMap<UUID, TaskBlocks>>,
     block_store: String
 }
 
 impl BlockOwnerServer {
-    fn new(store_path: String) -> Self {
+    pub fn new(store_path: String) -> Self {
         BlockOwnerServer {
             inner: Arc::new(BlockOwnerServerInner {
                 blocks: RwLock::new(BTreeMap::new()),

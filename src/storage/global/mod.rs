@@ -1,7 +1,7 @@
 // Global storage have a replicated backend and it's values are also cached locally.
 // It is mutable key-value store, changes will be broadcast to all listening nodes
 
-mod state_machine;
+pub mod state_machine;
 
 use super::*;
 use bifrost::raft::state_machine::master::ExecError;

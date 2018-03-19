@@ -20,7 +20,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use utils::uuid::UUID;
 
-mod server;
+pub mod server;
 
 service! {
     rpc read(task: UUID, id: UUID, pos: u64, limit: ReadLimitBy) -> (Vec<Vec<u8>>, u64) | String;
@@ -181,7 +181,7 @@ impl BlockManager {
                 return Err(msg);
             }
         };
-        Ok(AsyncServiceClient::new(server::DEFAULT_SERVICE_ID, &client))
+        Ok(AsyncServiceClient::new(server::BLOCK_OWNER_DEFAULT_SERVICE_ID, &client))
     }
 }
 

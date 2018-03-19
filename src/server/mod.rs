@@ -8,6 +8,9 @@ use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 use server::members::{LiveMembers, InitLiveMembersError};
 use storage::StorageManagers;
+use storage::block::server::{BlockOwnerServer, BLOCK_OWNER_DEFAULT_SERVICE_ID};
+use storage::global::state_machine::GlobalStore;
+use storage::immutable::state_machine::ImmutableStorageRegistry;
 use parking_lot::RwLock;
 use futures::Future;
 
@@ -46,6 +49,7 @@ pub struct HMServer {
     pub member_service: Arc<MemberService>,
     pub live_members: Arc<LiveMembers>,
     pub storage_managers: Arc<StorageManagers>,
+    pub block_server: Arc<BlockOwnerServer>,
     pub server_id: u64
 }
 
@@ -53,6 +57,7 @@ impl HMServer {
     pub fn new(
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
+        raft: Option<&Arc<raft::RaftService>>
     ) -> Result<Arc<HMServer>, ServerError> {
         let raft_client =
             RaftClient::new(&opts.meta_members, raft::DEFAULT_SERVICE_ID)
@@ -60,10 +65,15 @@ impl HMServer {
         let (member_service, live_members) =
             HMServer::load_cluster_clients(&raft_client, &opts, &rpc)?;
         let server_id = rpc.server_id;
-        let storage_managers =
-            StorageManagers::new(
-                &live_members, &raft_client, server_id
-            );
+        let storage_managers = StorageManagers::new(&live_members, &raft_client, server_id);
+        let block_server = Arc::new(BlockOwnerServer::new(opts.storage.to_owned()));
+        rpc.register_service(BLOCK_OWNER_DEFAULT_SERVICE_ID, &block_server);
+        if let Some(ref raft) = raft {
+            let global_store = GlobalStore::new(raft);
+            let immutable_store_registry = ImmutableStorageRegistry::new();
+            raft.register_state_machine(box global_store);
+            raft.register_state_machine(box immutable_store_registry);
+        }
         let refer = Arc::new(
             HMServer {
                 rpc: rpc.clone(),
@@ -71,6 +81,7 @@ impl HMServer {
                 member_service,
                 live_members,
                 storage_managers,
+                block_server,
                 server_id
             }
         );
