@@ -32,7 +32,6 @@ macro_rules! def_remote_func {
                     ident_id!($name)
                 }
                 fn get_affinity(&self) -> Vec<u64> {
-                    use $crate::actors::funcs::LocationTraced;
                     let mut id_set = ::std::collections::HashSet::new();
                     $(id_set.extend(self.$dataset.get_affinity());)*
                     return id_set.into_iter().collect();

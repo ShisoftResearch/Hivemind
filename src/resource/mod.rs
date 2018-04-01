@@ -4,10 +4,8 @@ pub mod block_storage;
 pub mod global_storage;
 pub mod immutable_storage;
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::cell::RefCell;
-use std::borrow::Borrow;
 use resource::block_storage::{BlockStorage, BlockStorageProperty};
 use resource::global_storage::{GlobalManager, GlobalStorageError};
 use resource::immutable_storage::{ImmutableStorage, ImmutableStorageProperty};
@@ -17,9 +15,8 @@ use serde::de::{DeserializeOwned};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use bifrost::utils::bincode;
 use futures::prelude::*;
-use futures::{stream, future};
+use futures::{stream};
 use utils::uuid::UUID;
-use server::HMServer;
 use actors::funcs::LocationTraced;
 
 pub const STORAGE_BUFFER: u64 = 10;

@@ -1,7 +1,5 @@
 use storage::block::BlockCursor;
 use futures::prelude::*;
-use bifrost::utils::bincode;
-use serde::de::DeserializeOwned;
 
 pub type BuffFut<T> = Box<Future<Item = (Vec<T>, BlockCursor), Error = String>>;
 

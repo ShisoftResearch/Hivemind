@@ -11,7 +11,6 @@ use std::io;
 use std::io::{BufWriter, Seek, SeekFrom};
 use std::collections::HashMap;
 use std::io::{Write, Read};
-use std::cell::RefCell;
 
 use bifrost::rpc::DEFAULT_CLIENT_POOL;
 

@@ -2,7 +2,6 @@ use super::streamable_storage::*;
 use storage::block::{BlockManager, BlockCursor, ReadLimitBy};
 use futures::prelude::*;
 use utils::uuid::UUID;
-use parking_lot::Mutex;
 use std::sync::Arc;
 use bifrost::utils::bincode;
 use serde::de::DeserializeOwned;

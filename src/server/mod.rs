@@ -1,9 +1,7 @@
 use bifrost::rpc;
-use bifrost::conshash::ConsistentHashing;
 use bifrost::raft;
 use bifrost::raft::client::{RaftClient, ClientError as RaftClientError};
 use bifrost::raft::state_machine::{master as sm_master};
-use bifrost::membership::server::Membership;
 use bifrost::membership::member::MemberService;
 use std::sync::Arc;
 use server::members::{LiveMembers, InitLiveMembersError};

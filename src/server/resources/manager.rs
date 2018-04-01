@@ -9,12 +9,10 @@
 //  the scheduler is safe to use the resource like sending job to the node. If RM return false,
 //  the scheduler should wait for another new resource notification from RM.
 
-
-use bifrost::conshash::ConsistentHashing;
 use bifrost::raft::RaftService;
 use bifrost::raft::state_machine::StateMachineCtl;
 use bifrost::raft::state_machine::callback::server::{
-    SMCallback, NotifyError};
+    SMCallback};
 use bifrost::membership::raft::commands::{
     on_group_member_offline, on_group_member_online,
     on_group_member_joined, on_group_member_left};

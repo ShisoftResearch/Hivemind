@@ -26,7 +26,7 @@ impl Hive {
     /// Distribute data across the cluster and return the local data set for further processing
     /// this function have a scope for each task. All distributed data are only accessible in their hive
     pub fn distribute<T>(&self, source: DataSet<T>)
-                         -> impl Future<Item = DataSet<T>, Error = String>
+        -> Box<Future<Item = DataSet<T>, Error = String>>
         where T: Serialize + DeserializeOwned + 'static
     {
         let members = self.members.clone();
@@ -50,13 +50,16 @@ impl Hive {
             })
             .buffered(num_members)
             .for_each(|_| Ok(()));
-        distribute_fut.map(move |_| {
+        // TODO: keep track on https://github.com/rust-lang/rust/issues/49556 for ICE problem to return impl instead of box
+        let res = distribute_fut.map(move |_| {
             DataSet::from_block_storage(
                 &block_manager2, this_server_id, task, id,
                 members,
                 STORAGE_BUFFER)
-        })
+        });
+        return box res;
     }
+
     /// Set a global value in the data store which visible across the cluster
     /// this function have a scope for each task. All set values are only available in their hive
     pub fn set_global<K, V>(&self, key: &K, value: &Option<V>)
@@ -185,17 +188,14 @@ impl Hive {
         Data::from(value)
     }
 
-    #[inline(always)]
     fn block_manager(&self) -> Arc<BlockManager> {
         self.storage_managers.block.clone()
     }
 
-    #[inline(always)]
     fn global_manager(&self) -> Arc<GlobalManager> {
         self.storage_managers.global.clone()
     }
 
-    #[inline(always)]
     fn immutable_manager(&self)  -> Arc<ImmutableManager> {
         self.storage_managers.immutable.clone()
     }
