@@ -35,9 +35,6 @@ pub enum ServerError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerOptions {
     pub processors: u16,
-    pub address: String,
-    pub group_name: String,
-    pub meta_members: Vec<String>,
     pub storage: String
 }
 
@@ -55,18 +52,18 @@ impl HMServer {
     pub fn new(
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
-        raft: Option<&Arc<raft::RaftService>>
+        raft_service: Option<&Arc<raft::RaftService>>,
+        raft_client: Arc<RaftClient>,
+        group_name: &String,
+        address: &String
     ) -> Result<Arc<HMServer>, ServerError> {
-        let raft_client =
-            RaftClient::new(&opts.meta_members, raft::DEFAULT_SERVICE_ID)
-                .map_err(|e| ServerError::CannotLoadMetaClient(e))?;
         let (member_service, live_members) =
-            HMServer::load_cluster_clients(&raft_client, &opts, &rpc)?;
+            HMServer::load_cluster_clients(&raft_client, &rpc, group_name, address)?;
         let server_id = rpc.server_id;
         let storage_managers = StorageManagers::new(&live_members, &raft_client, server_id);
         let block_server = Arc::new(BlockOwnerServer::new(opts.storage.to_owned()));
         rpc.register_service(BLOCK_OWNER_DEFAULT_SERVICE_ID, &block_server);
-        if let Some(ref raft) = raft {
+        if let Some(ref raft) = raft_service {
             let global_store = GlobalStore::new(raft);
             let immutable_store_registry = ImmutableStorageRegistry::new();
             raft.register_state_machine(box global_store);
@@ -91,9 +88,13 @@ impl HMServer {
         let def = DEFAULT.read();
         return def.clone().unwrap();
     }
-    fn join_group(opt: &ServerOptions, raft_client: &Arc<RaftClient>) -> Result<Arc<MemberService>, ServerError> {
-        let member_service = MemberService::new(&opt.address, raft_client);
-        match member_service.join_group(&opt.group_name).wait() {
+    fn join_group(
+        raft_client: &Arc<RaftClient>,
+        group_name: &String,
+        address: &String
+    ) -> Result<Arc<MemberService>, ServerError> {
+        let member_service = MemberService::new(address, raft_client);
+        match member_service.join_group(group_name).wait() {
             Ok(_) => Ok(member_service),
             Err(e) => {
                 error!("Cannot join cluster group");
@@ -103,13 +104,13 @@ impl HMServer {
     }
     fn load_cluster_clients (
         raft_client: &Arc<RaftClient>,
-        opts: &ServerOptions,
-        rpc_server: &Arc<rpc::Server>
+        rpc_server: &Arc<rpc::Server>,
+        group_name: &String,
+        address: &String
     ) -> Result<(Arc<MemberService>, Arc<LiveMembers>), ServerError> {
-
-        let member_service = Self::join_group(opts, raft_client)?;
+        let member_service = Self::join_group(raft_client, group_name, address)?;
         let live_members =
-            LiveMembers::new(&opts.group_name, raft_client)
+            LiveMembers::new(group_name, raft_client)
                 .map_err(|e| ServerError::CannotInitLiveMemberTable(e))?;
         RaftClient::prepare_subscription(rpc_server);
         Ok((member_service, live_members))
