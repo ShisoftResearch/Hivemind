@@ -53,14 +53,14 @@ impl HMServer {
         opts: &ServerOptions,
         rpc: &Arc<rpc::Server>,
         raft_service: Option<&Arc<raft::RaftService>>,
-        raft_client: Arc<RaftClient>,
+        raft_client: &Arc<RaftClient>,
         group_name: &String,
         address: &String
     ) -> Result<Arc<HMServer>, ServerError> {
         let (member_service, live_members) =
-            HMServer::load_cluster_clients(&raft_client, &rpc, group_name, address)?;
+            HMServer::load_cluster_clients(raft_client, &rpc, group_name, address)?;
         let server_id = rpc.server_id;
-        let storage_managers = StorageManagers::new(&live_members, &raft_client, server_id);
+        let storage_managers = StorageManagers::new(&live_members, raft_client, server_id);
         let block_server = Arc::new(BlockOwnerServer::new(opts.storage.to_owned()));
         rpc.register_service(BLOCK_OWNER_DEFAULT_SERVICE_ID, &block_server);
         if let Some(ref raft) = raft_service {

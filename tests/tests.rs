@@ -8,6 +8,8 @@ extern crate bifrost;
 #[macro_use]
 extern crate bifrost_hasher;
 extern crate hivemind;
+extern crate futures_await as futures;
 
 mod closure_serialize;
 mod storage;
+mod server;
