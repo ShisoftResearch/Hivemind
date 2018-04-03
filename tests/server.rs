@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::env;
 use hivemind::server::*;
 use bifrost::rpc;
 use bifrost::raft;
@@ -7,7 +8,10 @@ use bifrost::membership::member::MemberService;
 use bifrost::raft::client::RaftClient;
 use futures::prelude::*;
 
-pub fn get_server(opts: &ServerOptions, port: u32) -> Arc<HMServer> {
+pub fn get_server(mut opts: ServerOptions, port: u32) -> Arc<HMServer> {
+    if let Ok(env_store) = env::var("HM_CACHE_STORE") {
+        opts.storage = format!("{}/{}", env_store, opts.storage);
+    }
     let address = format!("127.0.0.1:{}", port);
     let rpc_server = rpc::Server::new(&address);
     let group_name = "test".to_string();
@@ -28,7 +32,7 @@ pub fn get_server(opts: &ServerOptions, port: u32) -> Arc<HMServer> {
     let member_service = MemberService::new(&address, &raft_client);
     member_service.join_group(&group_name).wait().unwrap();
     HMServer::new(
-        opts,
+        &opts,
         &rpc_server,
         Some(&raft_service),
         &raft_client,
@@ -38,7 +42,7 @@ pub fn get_server(opts: &ServerOptions, port: u32) -> Arc<HMServer> {
 
 #[test]
 pub fn server_startup() {
-    get_server(&ServerOptions {
+    get_server(ServerOptions {
         processors: 4,
         storage: "test_data".to_owned()
     }, 5200);
