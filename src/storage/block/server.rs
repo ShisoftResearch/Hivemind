@@ -7,6 +7,7 @@ use futures::prelude::*;
 use futures::future;
 
 static BUFFER_CAP: usize = 5 * 1027 * 1024;
+const DATA_LEN_SIZE: usize = 8;
 type TaskBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>>;
 pub static BLOCK_OWNER_DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
 
@@ -211,6 +212,8 @@ impl LocalOwnedBlock {
         let buf_cap = self.buffer.capacity();
         let buf_size = self.buffer.len();
         let data_len = data.len();
+        let mut len_bytes = [0u8; DATA_LEN_SIZE];
+        LittleEndian::write_u64(&mut len_bytes, data_len as u64);
         if buf_size + data_len > buf_cap { // write to disk
             let ensured = self.ensured_file()?;
             match self.local_file_buf {
@@ -220,17 +223,16 @@ impl LocalOwnedBlock {
                         writer.write(self.buffer.as_slice())?;
                         self.buffer.clear();
                     }
-                    let mut len_bytes = [0u8; 8];
-                    LittleEndian::write_u64(&mut len_bytes, data_len as u64);
                     writer.write(&len_bytes)?;
                     writer.write(data)?;
                 },
                 None => return Err(io::Error::from(io::ErrorKind::NotFound))
             };
         } else { // in-memory
+            self.buffer.extend_from_slice(&len_bytes);
             self.buffer.extend_from_slice(data);
         }
-        self.size += data.len() as u64;
+        self.size += (DATA_LEN_SIZE + data.len()) as u64;
         Ok(())
     }
 
@@ -246,12 +248,12 @@ impl LocalOwnedBlock {
                 let bytes_to_read = if pos + buf.len() > self.buffer.len() {
                     self.buffer.len() - pos
                 } else { buf.len() };
-                let read_data: Vec<_> = self.buffer.iter()
+                let data: Vec<_> = self.buffer.iter()
                     .skip(pos)
                     .take(bytes_to_read)
                     .cloned()
                     .collect();
-                buf.copy_from_slice(read_data.as_slice());
+                buf.copy_from_slice(data.as_slice());
                 return Ok(bytes_to_read);
             }
         }
@@ -274,23 +276,23 @@ impl LocalOwnedBlock {
         let mut cursor = pos as usize;
         while match limit {
             ReadLimitBy::Size(size) => read_bytes < size as usize,
-            ReadLimitBy::Items(num) => read_items < num as usize
-        } {
-            let mut len_buf = [0u8; 8];
+            ReadLimitBy::Items(num) => read_items < num as usize,
+        } && cursor < self.size as usize {
+            let mut len_buf = [0u8; DATA_LEN_SIZE];
             if self
                 .read_data(cursor, &mut len_buf)
                 .map_err(|e| format!("{}", e))? < 1 {
                 break;
             }
             let data_len = LittleEndian::read_u64(&len_buf) as usize;
-            cursor += 8;
+            cursor += DATA_LEN_SIZE;
             let mut data_vec = vec![0u8; data_len];
             self
                 .read_data(cursor, &mut data_vec)
                 .map_err(|e| format!("{}", e))?;
             res.push(data_vec);
             cursor += data_len;
-            read_bytes += data_len + 8;
+            read_bytes += data_len + DATA_LEN_SIZE;
             read_items += 1;
         }
         return Ok((res, cursor as u64))

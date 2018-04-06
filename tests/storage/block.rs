@@ -23,4 +23,6 @@ pub fn primary() {
     block_manager.write(server_id, task, k1, vec![vec![4u8, 5u8, 6u8]]);
     let cursor = BlockCursor::new(task, k1, ReadLimitBy::Items(10));
     let (data, new_cursor) = block_manager.read(server_id, cursor).wait().unwrap();
+    assert_eq!(data, vec![vec![1u8, 2u8, 3u8], vec![4u8, 5u8, 6u8]]);
+
 }
