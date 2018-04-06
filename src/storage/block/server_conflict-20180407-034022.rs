@@ -1,6 +1,5 @@
 use super::*;
 use std::collections::BTreeMap;
-use std::fs;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
@@ -9,7 +8,7 @@ use futures::future;
 
 type TaskBlocks = Arc<RwLock<BTreeMap<UUID, Arc<RwLock<LocalOwnedBlock>>>>>;
 pub static BLOCK_OWNER_DEFAULT_SERVICE_ID: u64 = hash_ident!(HIVEMIND_BLOCK_SERVICE) as u64;
-pub static BUFFER_CAP: usize = 5 * 1024 * 1024;
+pub static BUFFER_CAP: usize = 5 * 1027 * 1024;
 pub const DATA_LEN_SIZE: usize = 8;
 
 pub struct BlockOwnerServer {
@@ -24,7 +23,6 @@ struct BlockOwnerServerInner {
 
 impl BlockOwnerServer {
     pub fn new(store_path: String) -> Self {
-        fs::create_dir_all(&store_path);
         BlockOwnerServer {
             inner: Arc::new(BlockOwnerServerInner {
                 blocks: RwLock::new(BTreeMap::new()),
@@ -189,7 +187,6 @@ pub struct LocalOwnedBlock {
     id: UUID,
     buffer: Vec<u8>,
     buffer_pos: u64,
-    buffer_cap: usize,
     local_file_buf: Option<BufWriter<File>>,
     local_file_path: String,
     kv_map: HashMap<UUID, u64>,
@@ -200,14 +197,11 @@ impl LocalOwnedBlock {
     pub fn new<'a>(id: UUID, block_dir: &'a str, buffer_cap: usize) -> LocalOwnedBlock {
         let file_name = format!("{}.bin", id);
         let file_path = format!("{}/{}", block_dir, file_name);
-        let mut mem_buff = Vec::with_capacity(buffer_cap);
-        mem_buff.reserve(buffer_cap);
         info!("new block with path: {}", file_path);
         LocalOwnedBlock {
             id,
-            buffer: mem_buff,
+            buffer: Vec::with_capacity(buffer_cap),
             buffer_pos: 0,
-            buffer_cap,
             local_file_buf: None,
             local_file_path: file_path,
             kv_map: HashMap::new(),
@@ -216,12 +210,14 @@ impl LocalOwnedBlock {
     }
 
     pub fn append_data(&mut self, data: &[u8]) -> io::Result<()> {
-        let buf_cap = self.buffer_cap;
+        let buf_cap = self.buffer.capacity();
         let buf_size = self.size as usize;
         let data_len = data.len();
         let mut len_bytes = [0u8; DATA_LEN_SIZE];
         LittleEndian::write_u64(&mut len_bytes, data_len as u64);
+        println!("{}", buf_size);
         if buf_size + data_len > buf_cap { // write to disk
+            println!("write to disk");
             let ensured = self.ensured_file()?;
             match self.local_file_buf {
                 Some(ref mut writer) => {
@@ -267,7 +263,9 @@ impl LocalOwnedBlock {
     }
 
     fn ensured_file(&mut self) -> io::Result<bool> {
-        if !self.local_file_buf.is_some() {
+        println!("ensuring file");
+        let has_file = self.local_file_buf.is_some();
+        if !has_file {
             self.local_file_buf = Some(BufWriter::new(File::create(&self.local_file_path)?));
             Ok(true)
         } else {
