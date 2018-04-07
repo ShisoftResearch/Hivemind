@@ -309,7 +309,7 @@ impl LocalOwnedBlock {
     {
         let mut poses = Vec::new();
         for item in items {
-            poses.push(self.buffer.len() as u64);
+            poses.push(self.size as u64);
             self
                 .append_data(item.as_slice())
                 .map_err(|e| format!("{}", e))?

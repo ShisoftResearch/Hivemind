@@ -37,3 +37,29 @@ pub fn streaming() {
     }
     block_manager.remove_task(server_id, task);
 }
+
+#[test]
+pub fn key_value() {
+    let server = get_server(ServerOptions {
+        processors: 4,
+        storage: "test_data".to_owned()
+    }, 5202);
+    let task = UUID::rand();
+    let id = UUID::rand();
+    let server_id = server.server_id;
+    let block_manager = server.storage_managers.block.to_owned();
+    let test_iter = server::BUFFER_CAP / 8;// ensure exceeds in-memory buffer
+    block_manager.new_task(server_id, task);
+    for i in 0..test_iter {
+        let n: u8 = (i % 255) as u8;
+        let key = UUID::new(i as u64, i as u64);
+        block_manager.set(server_id, task, id, key, vec![n, n]).wait().unwrap();
+    }
+    for i in 0..test_iter {
+        let n: u8 = (i % 255) as u8;
+        let key = UUID::new(i as u64, i as u64);
+        let data = block_manager.get(server_id, task, id, key).wait().unwrap().unwrap();
+        assert_eq!(data, vec![n, n], "at iter: {}, MEM_CAP {}", i, server::BUFFER_CAP);
+    }
+    block_manager.remove_task(server_id, task);
+}
