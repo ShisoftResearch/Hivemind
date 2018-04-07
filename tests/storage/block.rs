@@ -5,6 +5,7 @@ use hivemind::storage::block::*;
 use server::get_server;
 use futures::prelude::*;
 use futures::future;
+use futures_cpupool::CpuPool;
 
 #[test]
 pub fn streaming() {
@@ -71,6 +72,7 @@ pub fn parallel() {
         processors: 4,
         storage: "test_data".to_owned()
     }, 5203);
+    let pool = CpuPool::new_num_cpus();
     let task = UUID::rand();
     let id = UUID::rand();
     let server_id = server.server_id;
@@ -82,7 +84,10 @@ pub fn parallel() {
             .map(|i| {
                 let n: u8 = (i % 255) as u8;
                 let key = UUID::new(i as u64, i as u64);
-                block_manager.set(server_id, task, id, key, vec![n, n])
+                let block_manager = block_manager.clone();
+                pool.spawn_fn(move || {
+                    block_manager.set(server_id, task, id, key, vec![n, n]).wait()
+                })
             });
     future::join_all(set_futs).wait().unwrap();
 
@@ -91,7 +96,11 @@ pub fn parallel() {
             .map(|i| {
                 let n: u8 = (i % 255) as u8;
                 let key = UUID::new(i as u64, i as u64);
-                block_manager.get(server_id, task, id, key)
+                let block_manager = block_manager.clone();
+                pool
+                    .spawn_fn(move || {
+                        block_manager.get(server_id, task, id, key).wait()
+                    })
                     .map(|x| x.unwrap())
                     .map(move |x| assert_eq!(x, vec![n, n], "at iter: {}", i))
             });

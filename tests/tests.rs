@@ -9,6 +9,7 @@ extern crate bifrost;
 extern crate bifrost_hasher;
 extern crate hivemind;
 extern crate futures_await as futures;
+extern crate futures_cpupool;
 
 mod closure_serialize;
 mod storage;
