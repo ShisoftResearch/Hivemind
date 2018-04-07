@@ -4,6 +4,7 @@ use hivemind::utils::uuid::UUID;
 use hivemind::storage::block::*;
 use server::get_server;
 use futures::prelude::*;
+use futures::future;
 
 #[test]
 pub fn streaming() {
@@ -59,7 +60,42 @@ pub fn key_value() {
         let n: u8 = (i % 255) as u8;
         let key = UUID::new(i as u64, i as u64);
         let data = block_manager.get(server_id, task, id, key).wait().unwrap().unwrap();
-        assert_eq!(data, vec![n, n], "at iter: {}, MEM_CAP {}", i, server::BUFFER_CAP);
+        assert_eq!(data, vec![n, n], "at iter: {}", i);
     }
+    block_manager.remove_task(server_id, task);
+}
+
+#[test]
+pub fn parallel() {
+    let server = get_server(ServerOptions {
+        processors: 4,
+        storage: "test_data".to_owned()
+    }, 5203);
+    let task = UUID::rand();
+    let id = UUID::rand();
+    let server_id = server.server_id;
+    let block_manager = server.storage_managers.block.to_owned();
+    let test_iter = server::BUFFER_CAP / 8;// ensure exceeds in-memory buffer
+    block_manager.new_task(server_id, task);
+    let set_futs =
+        (0..test_iter)
+            .map(|i| {
+                let n: u8 = (i % 255) as u8;
+                let key = UUID::new(i as u64, i as u64);
+                block_manager.set(server_id, task, id, key, vec![n, n])
+            });
+    future::join_all(set_futs).wait().unwrap();
+
+    let get_futs =
+        (0..test_iter)
+            .map(|i| {
+                let n: u8 = (i % 255) as u8;
+                let key = UUID::new(i as u64, i as u64);
+                block_manager.get(server_id, task, id, key)
+                    .map(|x| x.unwrap())
+                    .map(move |x| assert_eq!(x, vec![n, n], "at iter: {}", i))
+            });
+    future::join_all(get_futs).wait().unwrap();
+
     block_manager.remove_task(server_id, task);
 }

@@ -24,6 +24,7 @@ struct BlockOwnerServerInner {
 
 impl BlockOwnerServer {
     pub fn new(store_path: String) -> Self {
+        fs::remove_dir(&store_path);
         fs::create_dir_all(&store_path);
         BlockOwnerServer {
             inner: Arc::new(BlockOwnerServerInner {
