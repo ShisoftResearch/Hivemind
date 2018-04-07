@@ -74,6 +74,19 @@ impl BlockManager {
             Err(e) => box future::err(e)
         }
     }
+    pub fn remove_task(&self, server_id: u64, task_id: UUID)
+        -> Box<Future<Item = (), Error = String>>
+    {
+        match self.get_service(server_id) {
+            Ok(service) => {
+                box service
+                    .remove_task(task_id)
+                    .map_err(|e| format!("{:?}", e))
+                    .and_then(|r| r.map_err(|e| unreachable!()))
+            },
+            Err(e) => box future::err(e)
+        }
+    }
     pub fn read(&self, server_id: u64, cursor: BlockCursor)
         -> Box<Future<Item = (Vec<Vec<u8>>, BlockCursor), Error = String>>
     {

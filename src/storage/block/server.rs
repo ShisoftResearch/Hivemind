@@ -232,6 +232,7 @@ impl LocalOwnedBlock {
                     }
                     writer.write(&len_bytes)?;
                     writer.write(data)?;
+                    writer.flush()?;
                 },
                 None => return Err(io::Error::from(io::ErrorKind::NotFound))
             };
@@ -239,7 +240,7 @@ impl LocalOwnedBlock {
             self.buffer.extend_from_slice(&len_bytes);
             self.buffer.extend_from_slice(data);
         }
-        self.size += (DATA_LEN_SIZE + data.len()) as u64;
+        self.size += (DATA_LEN_SIZE + data_len) as u64;
         Ok(())
     }
 

@@ -1,5 +1,8 @@
 use uuid::Uuid;
 use std::fmt;
+use std::slice;
+use byteorder::LittleEndian;
+use byteorder::ByteOrder;
 
 #[derive(
     Ord, PartialOrd, PartialEq, Eq, Hash,
@@ -21,6 +24,23 @@ impl UUID {
     }
     pub fn unit() -> UUID {
         UNIT_UUID
+    }
+
+    pub fn new(higher: u64, lower: u64) -> UUID {
+        let mut hi = [0; 8];
+        let mut lo = [0; 8];
+        LittleEndian::write_u64(&mut hi, higher);
+        LittleEndian::write_u64(&mut lo, lower);
+        let mut res_vec = Vec::with_capacity(16);
+        res_vec.extend_from_slice(&hi);
+        res_vec.extend_from_slice(&lo);
+        let mut res_arr = [0; 16];
+        for i in 0..16 {
+            res_arr[i] = res_vec[i];
+        }
+        UUID {
+            bytes: res_arr
+        }
     }
 }
 
