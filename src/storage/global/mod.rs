@@ -69,7 +69,7 @@ impl GlobalManager {
         return lock.clone().unwrap();
     }
 
-    pub fn prepare(&self, id: UUID, watch_changes: bool) -> Result<Result<(), GlobalStorageError>, ExecError> {
+    pub fn new_task(&self, id: UUID, watch_changes: bool) -> Result<Result<(), GlobalStorageError>, ExecError> {
         let mut local_cache = self.local_cache.write();
         if local_cache.contains_key(&id) {
             return Ok(Err(GlobalStorageError::StoreNotExisted))
@@ -123,7 +123,7 @@ impl GlobalManager {
     }
 
     // should be called only once, by the task manager
-    pub fn invalidate(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
+    pub fn remove_task(&self, id: UUID) -> Result<Result<(), GlobalStorageError>, ExecError> {
         let mut cache = self.local_cache.write();
         if !cache.contains_key(&id) {
             return Ok(Err(GlobalStorageError::StoreNotExisted));

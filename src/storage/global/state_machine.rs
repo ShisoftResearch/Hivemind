@@ -115,7 +115,7 @@ impl GlobalStore {
 
 impl StateMachineCtl for GlobalStore {
     raft_sm_complete!();
-    fn id(&self) -> u64 {10}
+    fn id(&self) -> u64 { RAFT_SM_ID }
     fn snapshot(&self) -> Option<Vec<u8>> { None }
     fn recover(&mut self, data: Vec<u8>) {}
 }
