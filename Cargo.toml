@@ -2,29 +2,26 @@
 name = "hivemind"
 version = "0.1.0"
 authors = ["Jack Shi <shisoftgenius@gmail.com>"]
+edition = "2021"
 
 [dependencies]
-libloading = "0.4"
+libloading = "0.7"
 serde = "*"
 serde_derive = "*"
 bifrost = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
 bifrost_plugins = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
 bifrost_hasher = { git = "https://github.com/shisoft/bifrost", branch = "develop" }
-neb = { git = "https://github.com/ShisoftResearch/Nebuchadnezzar", branch = "develop" }
+dovahkiin = { git = "https://github.com/ShisoftResearch/Dovahkiin.git", branch = "develop" }
 lazy_static = "*"
-uuid = { version = "0.5", features = ["v4"] }
-parking_lot = "0.4"
+uuid = { version = "0.8", features = ["v4", "serde"] }
+parking_lot = "0.11"
 typedef = "0.3"
-futures = "0.1"
-futures-cpupool = "0.1"
-log = "0.3"
+futures = "0.3"
+log = "*"
 itertools = "*"
 
 [lib]
 name = "hivemind"
-
-[[test]]
-name = "tests"
 
 [features]
 nightly = ["typedef/nightly"]

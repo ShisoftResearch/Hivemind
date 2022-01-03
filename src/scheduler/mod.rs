@@ -1,2 +1,2 @@
-pub mod stages;
-pub mod dag;
+mod local;
+mod remote;
